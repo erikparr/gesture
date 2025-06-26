@@ -7,6 +7,8 @@ import SaveMidiButton from './components/SaveMidiButton';
 import MidiPlayer from './components/MidiPlayer';
 import Timeline from './Timeline';
 import MidiRecorder from './utils/MidiRecorder';
+import Toolbar from './components/Toolbar';
+import SettingsManager from './utils/SettingsManager';
 
 function App() {
   const [midiData, setMidiData] = useState(null);
@@ -18,7 +20,35 @@ function App() {
   const [liveNotes, setLiveNotes] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [selectedScale, setSelectedScale] = useState('major');
+  const [rootNote, setRootNote] = useState('C');
+  const [octave, setOctave] = useState(4);
   const recordButtonRef = useRef(null);
+
+  // Load settings on component mount
+  useEffect(() => {
+    const loadInitialSettings = async () => {
+      try {
+        const settings = await SettingsManager.loadSettings();
+        setSelectedScale(settings.selectedScale);
+        setRootNote(settings.rootNote);
+        setOctave(settings.octave);
+        setEditMode(settings.editMode);
+        
+        // Load last MIDI data if available
+        if (settings.lastMidiData) {
+          const deserializedData = SettingsManager.deserializeMidiData(settings.lastMidiData);
+          if (deserializedData) {
+            setParsedMidi(deserializedData);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading initial settings:', error);
+      }
+    };
+    
+    loadInitialSettings();
+  }, []);
 
   // Initialize MIDI recorder on component mount
   useEffect(() => {
@@ -150,7 +180,18 @@ function App() {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:8000/generate');
+      const response = await fetch('http://localhost:8000/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          scale_type: selectedScale,
+          root_note: rootNote,
+          octave: octave,
+          num_notes: 8
+        })
+      });
       
       if (!response.ok) {
         throw new Error('Failed to generate MIDI');
@@ -187,6 +228,57 @@ function App() {
     }
   };
 
+  const handleSaveSettings = async () => {
+    try {
+      const settings = {
+        selectedScale,
+        rootNote,
+        octave,
+        zoomLevel: 100, // TODO: Get from Timeline
+        editMode,
+        lastMidiData: SettingsManager.serializeMidiData(parsedMidi)
+      };
+      
+      await SettingsManager.saveSettings(settings);
+      setError(null);
+      console.log('Settings saved successfully');
+    } catch (error) {
+      setError('Failed to save settings: ' + error.message);
+    }
+  };
+
+  const handleLoadSettings = async (file) => {
+    try {
+      const result = await SettingsManager.uploadSettings(file);
+      if (result.settings) {
+        setSelectedScale(result.settings.selectedScale);
+        setRootNote(result.settings.rootNote);
+        setOctave(result.settings.octave);
+        setEditMode(result.settings.editMode);
+        
+        if (result.settings.lastMidiData) {
+          const deserializedData = SettingsManager.deserializeMidiData(result.settings.lastMidiData);
+          if (deserializedData) {
+            setParsedMidi(deserializedData);
+          }
+        }
+      }
+      setError(null);
+      console.log('Settings loaded successfully');
+    } catch (error) {
+      setError('Failed to load settings: ' + error.message);
+    }
+  };
+
+  const handleDownloadSettings = async () => {
+    try {
+      await SettingsManager.downloadSettings();
+      setError(null);
+    } catch (error) {
+      setError('Failed to download settings: ' + error.message);
+    }
+  };
+
   return (
     <div style={{
       padding: '40px',
@@ -196,6 +288,18 @@ function App() {
     }}>
       <h1>MIDI Editor</h1>
       <p>Generate and play MIDI files</p>
+      
+      <Toolbar
+        selectedScale={selectedScale}
+        rootNote={rootNote}
+        octave={octave}
+        onScaleChange={setSelectedScale}
+        onRootNoteChange={setRootNote}
+        onOctaveChange={setOctave}
+        onSaveSettings={handleSaveSettings}
+        onLoadSettings={handleLoadSettings}
+        onDownloadSettings={handleDownloadSettings}
+      />
       
       <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <GenerateButton onGenerate={handleGenerate} loading={loading} />
