@@ -127,12 +127,24 @@ export const duplicatePattern = (notes, viewportEnd) => {
 export const mirrorPattern = (notes, viewportEnd) => {
   if (!notes || notes.length === 0) return notes;
   
-  const reversedNotes = reverseNotes(notes, 0, viewportEnd);
-  const mirroredNotes = reversedNotes.map(note => ({
-    ...note,
-    time: note.time + viewportEnd,
-    id: `${note.id}-mirror`
-  }));
+  // Find the actual end time of the pattern (last note end time)
+  const patternEnd = Math.max(...notes.map(n => n.time + n.duration));
+  const patternStart = Math.min(...notes.map(n => n.time));
+  const patternDuration = patternEnd - patternStart;
+  
+  // Create mirrored notes by reversing the time within the pattern
+  const mirroredNotes = notes.map((note, index) => {
+    // Calculate reversed time: for each note, mirror it around the pattern center
+    const relativeTime = note.time - patternStart;
+    const mirroredRelativeTime = patternDuration - relativeTime - note.duration;
+    const mirroredTime = patternEnd + mirroredRelativeTime;
+    
+    return {
+      ...note,
+      time: mirroredTime,
+      id: `${note.id}-mirror-${index}`
+    };
+  }).reverse(); // Reverse the array order to get proper mirror sequence
   
   return [...notes, ...mirroredNotes];
 };

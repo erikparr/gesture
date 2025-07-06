@@ -31,6 +31,7 @@ const ViewportEditor = ({
     { id: 'invert', label: 'Invert Pitch', hasSubmenu: false },
     { id: 'humanize', label: 'Humanize', hasSubmenu: false },
     { id: 'counterpoint', label: 'Add Counterpoint', hasSubmenu: false },
+    { id: 'mirror', label: 'Mirror Pattern', hasSubmenu: false },
   ];
 
   const handleApply = async () => {
@@ -89,6 +90,18 @@ const ViewportEditor = ({
       case 'humanize':
         transformedNotes = transforms.humanizeNotes(viewportNotes);
         break;
+        
+      case 'mirror':
+        // Mirror creates new notes (doubled pattern), so handle it specially
+        const mirroredNotes = transforms.mirrorPattern(viewportNotes, viewportStart + viewportDuration);
+        // Replace only the viewport notes with the mirrored pattern
+        const notesOutsideViewport = notes.filter(n => {
+          return n.time < viewportStart || n.time >= viewportStart + viewportDuration;
+        });
+        onApplyTransform([...notesOutsideViewport, ...mirroredNotes]);
+        setShowDropdown(false);
+        setSubMenuOpen('');
+        return;
         
       case 'counterpoint':
         try {

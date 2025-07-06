@@ -4,7 +4,6 @@ from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from music21 import stream, note, tempo, meter, duration, scale
-import io
 import json
 import os
 from pathlib import Path
