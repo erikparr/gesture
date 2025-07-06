@@ -338,6 +338,8 @@ function App() {
         isRecording={isRecording}
         editMode={editMode}
         playbackTime={playbackTime}
+        selectedScale={selectedScale}
+        rootNote={rootNote}
         onNotesChange={(newData) => {
           console.log('Notes changed, updating parsedMidi:', newData);
           setParsedMidi(newData);

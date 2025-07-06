@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+import ViewportEditor from './components/ViewportEditor';
 import './Timeline.css';
 
-const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = false, onNotesChange, playbackTime }) => {
+const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = false, onNotesChange, playbackTime, selectedScale, rootNote }) => {
 
   
   // Create editable version with IDs when in edit mode
@@ -416,8 +417,41 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
     }
   };
   
+  // Calculate viewport information
+  const canvasWidth = 1200;
+  const pixelsPerSecond = PIXELS_PER_SECOND * zoom / 100;
+  const viewportStart = scrollX / pixelsPerSecond;
+  const viewportDuration = canvasWidth / pixelsPerSecond;
+
+  const handleTransformNotes = (transformedNotes) => {
+    if (!displayData || !displayData.tracks) return;
+    
+    // Create a new data structure with transformed notes
+    const newData = {
+      ...displayData,
+      tracks: displayData.tracks.map((track, trackIndex) => ({
+        ...track,
+        notes: transformedNotes
+      }))
+    };
+    
+    if (onNotesChange) {
+      onNotesChange(newData);
+    }
+  };
+
   return (
     <div className="timeline-container">
+      {editMode && displayData && displayData.tracks && displayData.tracks[0] && (
+        <ViewportEditor
+          notes={displayData.tracks[0].notes}
+          viewportStart={viewportStart}
+          viewportDuration={viewportDuration}
+          selectedScale={selectedScale}
+          rootNote={rootNote}
+          onApplyTransform={handleTransformNotes}
+        />
+      )}
       <div className="timeline-controls">
         <button onClick={() => setZoom(Math.min(500, zoom + 10))}>Zoom In</button>
         <button onClick={() => setZoom(Math.max(10, zoom - 10))}>Zoom Out</button>
