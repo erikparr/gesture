@@ -23,6 +23,7 @@ const Toolbar = ({
     { value: 'whole tone', label: 'Whole Tone' },
     { value: 'dorian', label: 'Dorian' },
     { value: 'phrygian', label: 'Phrygian' },
+    { value: 'phrygian dominant', label: 'Phrygian Dominant' },
     { value: 'lydian', label: 'Lydian' },
     { value: 'mixolydian', label: 'Mixolydian' },
     { value: 'aeolian', label: 'Aeolian' },

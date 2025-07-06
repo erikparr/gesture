@@ -2,11 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import './Timeline.css';
 
 const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = false, onNotesChange }) => {
-  console.log('Timeline component rendered with props:', { 
-    midiData: midiData ? `${midiData.tracks?.length} tracks` : 'null',
-    editMode,
-    hasNotes: midiData?.tracks?.[0]?.notes?.length || 0
-  });
+
   
   // Create editable version with IDs when in edit mode
   const displayData = useMemo(() => {
@@ -67,6 +63,7 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
   
   const NOTE_HEIGHT = 10;
   const PIXELS_PER_SECOND = 100;
+  const RULER_HEIGHT = 40; // Height of time ruler
   
   // Helper functions
   const midiNoteToY = (noteNumber) => {
@@ -74,8 +71,9 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
     const minNote = 0;
     const canvasHeight = 600;
     const padding = 20;
-    const usableHeight = canvasHeight - (2 * padding);
-    return padding + ((maxNote - noteNumber) / (maxNote - minNote)) * usableHeight;
+    const usableHeight = canvasHeight - RULER_HEIGHT - (2 * padding);
+    const yStart = RULER_HEIGHT + padding;
+    return yStart + ((maxNote - noteNumber) / (maxNote - minNote)) * usableHeight;
   };
 
   const yToMidiNote = (y) => {
@@ -83,8 +81,9 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
     const minNote = 0;
     const canvasHeight = 600;
     const padding = 20;
-    const usableHeight = canvasHeight - (2 * padding);
-    const normalizedY = (y - padding) / usableHeight;
+    const usableHeight = canvasHeight - RULER_HEIGHT - (2 * padding);
+    const yStart = RULER_HEIGHT + padding;
+    const normalizedY = (y - yStart) / usableHeight;
     return Math.round(maxNote - (normalizedY * (maxNote - minNote)));
   };
 
@@ -226,28 +225,77 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
+    const rulerHeight = 40; // Height reserved for time ruler
     
     ctx.clearRect(0, 0, width, height);
     
+    // Background
     ctx.fillStyle = '#1e1e1e';
     ctx.fillRect(0, 0, width, height);
     
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
+    // Time ruler background
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(0, 0, width, rulerHeight);
     
-    for (let i = 0; i < width; i += 50) {
+    // Draw time grid and ruler
+    const pixelsPerSecond = PIXELS_PER_SECOND * zoom / 100;
+    const visibleStartTime = scrollX / pixelsPerSecond;
+    const visibleEndTime = (scrollX + width) / pixelsPerSecond;
+    
+    // Determine grid interval based on zoom
+    let gridInterval = 1; // Default 1 second
+    if (zoom < 50) gridInterval = 2;
+    if (zoom < 25) gridInterval = 5;
+    if (zoom > 200) gridInterval = 0.5;
+    if (zoom > 400) gridInterval = 0.25;
+    
+    // Draw vertical time grid lines and labels
+    for (let time = Math.floor(visibleStartTime / gridInterval) * gridInterval; 
+         time <= visibleEndTime + gridInterval; 
+         time += gridInterval) {
+      const x = timeToPixels(time);
+      
+      // Grid line
+      ctx.strokeStyle = time % 1 === 0 ? '#444' : '#333'; // Stronger lines for whole seconds
+      ctx.lineWidth = time % 1 === 0 ? 1 : 0.5;
       ctx.beginPath();
-      ctx.moveTo(i - scrollX, 0);
-      ctx.lineTo(i - scrollX, height);
+      ctx.moveTo(x, rulerHeight);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+      
+      // Time label
+      if (time >= 0) {
+        ctx.fillStyle = '#999';
+        ctx.font = '12px monospace';
+        ctx.fillText(`${time.toFixed(1)}s`, x + 3, 25);
+      }
+      
+      // Tick mark
+      ctx.strokeStyle = '#666';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, rulerHeight - 10);
+      ctx.lineTo(x, rulerHeight);
       ctx.stroke();
     }
     
-    for (let i = 0; i < height; i += 30) {
+    // Horizontal grid lines (pitch reference)
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 0.5;
+    for (let i = rulerHeight + 30; i < height; i += 30) {
       ctx.beginPath();
       ctx.moveTo(0, i);
       ctx.lineTo(width, i);
       ctx.stroke();
     }
+    
+    // Ruler bottom border
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, rulerHeight);
+    ctx.lineTo(width, rulerHeight);
+    ctx.stroke();
     
     // Render recorded/generated MIDI notes
     if (displayData && displayData.tracks) {

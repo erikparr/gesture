@@ -15,8 +15,14 @@
 ### Key Components
 - `App.js` - Main component handling state and API calls
 - `GenerateButton.js` - Button component for generating MIDI files
-- `MidiPlayer.js` - Component for playing MIDI files using Tone.js
-- `Timeline.js` - Canvas-based timeline component for visualizing MIDI notes
+- `RecordButton.js` - Live MIDI recording with countdown and progress indicator
+- `EditModeButton.js` - Toggle button for enabling/disabling edit mode
+- `SaveMidiButton.js` - Export edited MIDI as downloadable file
+- `MidiPlayer.js` - Component for playing actual MIDI content using Tone.js
+- `Timeline.js` - Interactive canvas-based timeline for visualizing and editing MIDI notes
+- `MidiRecorder.js` - Utility class for Web MIDI API integration and live recording
+- `Toolbar.js` - Scale/key selection and settings management toolbar
+- `SettingsManager.js` - Utility for saving/loading app settings to file
 
 ### Frontend Setup Commands
 ```bash
@@ -35,7 +41,13 @@ npm start  # Runs on http://localhost:3000
 
 ### API Endpoints
 - `GET /` - Health check, returns `{"message": "MIDI Editor Backend"}`
-- `GET /generate` - Generates C major scale MIDI file and returns binary data
+- `POST /generate` - Generates scale-based MIDI file with custom parameters
+- `POST /convert-recording` - Converts live MIDI recording events to MIDI file
+- `POST /save-midi` - Saves edited MIDI notes as downloadable MIDI file
+- `GET /settings` - Load current app settings from file
+- `POST /settings` - Save app settings to file
+- `POST /settings/upload` - Upload settings file
+- `GET /settings/download` - Download settings file
 
 ### Backend Setup Commands
 ```bash
@@ -65,37 +77,109 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
       s.write('midi', fp=tmp_file.name)
       # Read and return bytes
   ```
-- Currently generates simple C major scale: `['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']`
+- **Scale Generation**: Supports 15+ scales with custom root note and octave
+- **Supported Scales**: Major, Minor, Harmonic Minor, Melodic Minor, Pentatonic, Minor Pentatonic, Blues, Chromatic, Whole Tone, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian
+- **Implementation**: Uses semitone intervals for consistent ascending patterns
 - MIDI files returned as binary data with `audio/midi` content type
 
 ### Audio Playback
-- Frontend uses Tone.js for audio synthesis
-- MidiPlayer component plays hardcoded notes that match backend generation
-- Timeline component uses @tonejs/midi to parse actual MIDI file data
+- Frontend uses Tone.js for audio synthesis with proper scheduling
+- MidiPlayer component plays actual MIDI content (not hardcoded)
+- Supports both generated and recorded MIDI with accurate timing and velocity
+- Timeline component uses @tonejs/midi to parse MIDI file data
+
+## Live MIDI Recording Features
+
+### Web MIDI API Integration
+- Automatic detection and connection to all available MIDI devices
+- Device status display showing connected controllers
+- Real-time MIDI event capture with microsecond precision timing
+- Support for note on/off, velocity, and channel data
+
+### Recording Workflow
+- 3-second countdown before recording starts
+- Visual progress indicator (0-10 seconds maximum)
+- Auto-stop at 10 seconds or manual stop
+- Real-time visualization of notes as they're being played
+- Automatic conversion to standard MIDI format
+
+### Recording Visual Feedback
+- **Red markers**: Currently pressed keys (active notes)
+- **Orange bars**: Completed notes during recording session
+- **Green bars**: Final recorded/generated notes
 
 ## Timeline Editor Features
 
 ### Current Implementation
-- Canvas-based rendering (1200x600px)
+- Canvas-based rendering (1200x600px) - always visible
 - Visual representation of MIDI notes on a grid
 - Zoom controls (10% to 500%) with buttons or Ctrl/Cmd+scroll
 - Horizontal scrolling with mouse wheel
 - Note height visualization based on MIDI note number (0-127)
 - Grid background for timing reference
 
+### Edit Mode Features
+- **Toggle Edit Mode**: Enable/disable note editing with visual indicator
+- **Note Selection**: Click notes to select (turn blue), Ctrl/Cmd+click for multi-select
+- **Drag and Drop**: Move notes horizontally (time) and vertically (pitch)
+- **Real-time Preview**: Orange preview during dragging
+- **Position Constraints**: Notes cannot go below time 0 or outside MIDI range
+- **Visual States**: Green (normal), Blue (selected), Orange (dragging)
+
 ### Timeline Interaction
+- **View Mode**: Zoom and pan only
+- **Edit Mode**: Full editing capabilities
 - Zoom: Use zoom buttons or Ctrl/Cmd + mouse wheel
 - Pan: Scroll horizontally with mouse wheel
 - Time scale: 100 pixels per second (adjustable with zoom)
+- Click empty space to deselect all notes
+
+## Scale Selection & Settings Features
+
+### Scale Selection Toolbar
+- **Scale Types**: 15 scales available via dropdown (Major, Minor, Pentatonic, Blues, Modes, etc.)
+- **Root Note Selection**: All 12 chromatic notes (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
+- **Octave Selection**: Choose from octaves 2-6
+- **Real-time Updates**: Changes immediately affect new MIDI generation
+
+### Settings Persistence
+- **File-based Storage**: Settings saved to `settings.json` in backend directory
+- **Auto-load on Startup**: App restores previous scale, key, and MIDI data
+- **Manual Save/Load**: Save current settings or upload settings file
+- **Download Settings**: Export settings as JSON file for backup/sharing
+- **Included Data**: Scale type, root note, octave, zoom level, edit mode, last MIDI composition
+
+### Settings Structure
+```json
+{
+  "selectedScale": "major",
+  "rootNote": "C", 
+  "octave": 4,
+  "zoomLevel": 100,
+  "editMode": false,
+  "lastMidiData": "[serialized MIDI data]"
+}
+```
+
+## File Export Feature
+
+### Save MIDI Functionality
+- **Save Button**: Export edited compositions as standard MIDI files
+- **Automatic Download**: Files saved as `edited-midi-[timestamp].mid`
+- **Preserves Edits**: All timing, pitch, velocity, and duration changes included
+- **Standard Format**: Compatible with all MIDI software and hardware
 
 ## Development Workflow
 
-1. Start backend: `cd backend && uvicorn main:app --reload`
+1. Start backend: `cd backend && source venv/bin/activate && uvicorn main:app --reload`
 2. Start frontend: `cd frontend && npm start`
-3. Frontend fetches MIDI from `http://localhost:8000/generate`
-4. MIDI data is parsed using @tonejs/midi
-5. Timeline displays parsed MIDI notes visually
-6. MidiPlayer uses Tone.js to synthesize audio
+3. **Select Scale**: Choose scale type, root note, and octave from toolbar
+4. **Generate MIDI**: Click "Generate MIDI" to create scale pattern with selected parameters
+5. **Record MIDI**: Connect MIDI device and click "Record MIDI" (max 10 seconds)
+6. **Edit Notes**: Enable "Edit Mode" to select and drag notes
+7. **Save Settings**: Click "Save Settings" to persist current configuration
+8. **Save File**: Click "Save MIDI" to download edited composition
+9. **Playback**: Use "Play MIDI" to hear current composition
 
 ## Error Handling
 
@@ -109,6 +193,26 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 - Audio context errors handled in MidiPlayer component
 - MIDI parsing errors caught and displayed
 - Content-type checking to detect backend JSON error responses
+- MIDI device connection errors with fallback messaging
+- Edit mode validation prevents invalid note positions
+
+### Known Issues & Solutions
+
+#### MIDI Object Property Access
+- **Issue**: @tonejs/midi note objects have non-enumerable properties that don't survive spread operator
+- **Solution**: Explicitly copy properties: `{time: note.time, midi: note.midi, duration: note.duration, velocity: note.velocity}`
+- **Affects**: Edit mode note rendering and dragging functionality
+
+#### Browser MIDI Permissions
+- **Issue**: Web MIDI API requires user permission and HTTPS in some browsers
+- **Solution**: Graceful fallback with error messaging when MIDI unavailable
+- **Note**: Recording features disabled if no MIDI access granted
+
+#### Settings File Management
+- **Location**: `settings.json` created in `/backend` directory
+- **Persistence**: Settings automatically loaded on app startup
+- **Backup**: Use "Download Settings" to export for safe keeping
+- **Git**: `settings.json` added to `.gitignore` to prevent accidental commits
 
 ## Testing Commands
 - Backend: No specific test command configured

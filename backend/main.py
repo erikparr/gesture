@@ -1,10 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
-from typing import List
-from music21 import stream, note, tempo, meter, duration
+from typing import List, Optional
+from music21 import stream, note, tempo, meter, duration, scale
 import io
+import json
+import os
+from pathlib import Path
+from scale_utils import get_scale_intervals
 
 class MidiEvent(BaseModel):
     type: str  # 'noteOn' or 'noteOff'
@@ -26,7 +30,24 @@ class SaveNote(BaseModel):
 class SaveMidiData(BaseModel):
     notes: List[SaveNote]
 
+class GenerateParams(BaseModel):
+    scale_type: str = "major"
+    root_note: str = "C"
+    octave: int = 4
+    num_notes: int = 8
+
+class Settings(BaseModel):
+    selectedScale: str = "major"
+    rootNote: str = "C"
+    octave: int = 4
+    zoomLevel: float = 100
+    editMode: bool = False
+    lastMidiData: Optional[str] = None
+
 app = FastAPI()
+
+# Settings file path
+SETTINGS_FILE = Path("./settings.json")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,31 +61,38 @@ app.add_middleware(
 def read_root():
     return {"message": "MIDI Editor Backend"}
 
-@app.get("/generate")
-def generate_midi():
+@app.post("/generate")
+def generate_midi(params: GenerateParams):
     try:
         # Create a simple melody
         s = stream.Stream()
         s.append(tempo.TempoIndication(number=120))
         s.append(meter.TimeSignature('4/4'))
         
-        # Add some notes (C major scale)
-        notes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']
-        for note_name in notes:
-            n = note.Note(note_name)
+        # Get scale intervals from our utility module
+        intervals = get_scale_intervals(params.scale_type)
+        
+        # Convert root note to MIDI number
+        root_note_obj = note.Note(f"{params.root_note}{params.octave}")
+        root_midi = root_note_obj.pitch.midi
+        
+        # Generate ascending notes
+        for i in range(params.num_notes):
+            scale_degree = i % len(intervals)
+            octave_offset = i // len(intervals)
+            
+            midi_note = root_midi + intervals[scale_degree] + (octave_offset * 12)
+            n = note.Note(midi=midi_note)
             n.duration = duration.Duration(0.5)  # Half note
             s.append(n)
         
         # Convert to MIDI bytes
-        midi_data = io.BytesIO()
-        # Write to a temporary file first, then read it
         import tempfile
         with tempfile.NamedTemporaryFile(suffix='.mid', delete=False) as tmp_file:
             s.write('midi', fp=tmp_file.name)
             tmp_file.flush()
             with open(tmp_file.name, 'rb') as f:
                 midi_bytes = f.read()
-            import os
             os.unlink(tmp_file.name)
         
         return Response(
@@ -190,4 +218,63 @@ def save_midi(save_data: SaveMidiData):
         )
     except Exception as e:
         print(f"Error saving MIDI: {str(e)}")
+        return {"error": str(e)}
+
+@app.get("/settings")
+def get_settings():
+    try:
+        if SETTINGS_FILE.exists():
+            with open(SETTINGS_FILE, 'r') as f:
+                return json.load(f)
+        else:
+            # Return default settings
+            return Settings().dict()
+    except Exception as e:
+        print(f"Error loading settings: {str(e)}")
+        return Settings().dict()
+
+@app.post("/settings")
+def save_settings(settings: Settings):
+    try:
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings.dict(), f, indent=2)
+        return {"message": "Settings saved successfully"}
+    except Exception as e:
+        print(f"Error saving settings: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/settings/upload")
+async def upload_settings(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        settings_data = json.loads(contents)
+        
+        # Validate the settings
+        settings = Settings(**settings_data)
+        
+        # Save to file
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings.dict(), f, indent=2)
+        
+        return {"message": "Settings uploaded successfully", "settings": settings.dict()}
+    except Exception as e:
+        print(f"Error uploading settings: {str(e)}")
+        return {"error": str(e)}
+
+@app.get("/settings/download")
+def download_settings():
+    try:
+        if not SETTINGS_FILE.exists():
+            # Create default settings file
+            default_settings = Settings()
+            with open(SETTINGS_FILE, 'w') as f:
+                json.dump(default_settings.dict(), f, indent=2)
+        
+        return FileResponse(
+            path=SETTINGS_FILE,
+            media_type="application/json",
+            filename="gesture-edit-settings.json"
+        )
+    except Exception as e:
+        print(f"Error downloading settings: {str(e)}")
         return {"error": str(e)}
