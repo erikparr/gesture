@@ -44,6 +44,17 @@ class Settings(BaseModel):
     editMode: bool = False
     lastMidiData: Optional[str] = None
 
+class CounterpointNote(BaseModel):
+    midi: int
+    time: float
+    duration: float
+    velocity: float
+
+class CounterpointRequest(BaseModel):
+    notes: List[CounterpointNote]
+    key: str
+    scale_type: str
+
 app = FastAPI()
 
 # Settings file path
@@ -278,3 +289,111 @@ def download_settings():
     except Exception as e:
         print(f"Error downloading settings: {str(e)}")
         return {"error": str(e)}
+
+@app.post("/generate_counterpoint")
+def generate_counterpoint(request: CounterpointRequest):
+    try:
+        # Get scale notes for the given key
+        if request.scale_type == "major":
+            s = scale.MajorScale(request.key)
+        elif request.scale_type == "minor":
+            s = scale.MinorScale(request.key)
+        else:
+            # Default to major if unknown scale type
+            s = scale.MajorScale(request.key)
+        
+        scale_pitches = [p.midi for p in s.pitches]
+        
+        # Generate interspaced counterpoint using alternating timeline approach
+        # This creates a new timeline where original and counterpoint notes alternate
+        alternating_notes = []
+        
+        for i, original_note in enumerate(request.notes):
+            # Step 1: Recalculate original note timing (double-spaced)
+            new_original_time = i * (original_note.duration * 2)
+            
+            # Add re-timed original note
+            alternating_notes.append({
+                "midi": original_note.midi,
+                "time": new_original_time,
+                "duration": original_note.duration,
+                "velocity": original_note.velocity,
+                "id": f"orig-{i}"
+            })
+            
+            # Step 2: Calculate counterpoint note timing and pitch
+            cp_time = new_original_time + original_note.duration
+            cp_duration = original_note.duration
+            
+            # Determine motion direction for pitch
+            prefer_direction = -1  # Default: start below
+            if i > 0:
+                motion = original_note.midi - request.notes[i-1].midi
+                prefer_direction = -1 if motion > 0 else 1  # Contrary motion
+            
+            # Try intervals in order of preference [3rd, 6th, 5th, octave]
+            intervals = [4, 9, 7, 12]  # Semitones
+            
+            found_valid_note = False
+            for interval in intervals:
+                candidate = original_note.midi + (interval * prefer_direction)
+                
+                # Check if in reasonable range (C3 to C6)
+                if 48 <= candidate <= 84:
+                    # Snap to scale
+                    candidate = snap_to_scale(candidate, scale_pitches)
+                    
+                    alternating_notes.append({
+                        "midi": candidate,
+                        "time": cp_time,
+                        "duration": cp_duration,
+                        "velocity": original_note.velocity * 0.7,
+                        "id": f"cp-{i}"
+                    })
+                    found_valid_note = True
+                    break
+            
+            # Fallback: use a 3rd above if nothing else worked
+            if not found_valid_note:
+                candidate = original_note.midi + 4
+                candidate = snap_to_scale(candidate, scale_pitches)
+                alternating_notes.append({
+                    "midi": candidate,
+                    "time": cp_time,
+                    "duration": cp_duration,
+                    "velocity": original_note.velocity * 0.7,
+                    "id": f"cp-{i}"
+                })
+        
+        # Return ALL notes (both re-timed originals and counterpoint)
+        return {"counterpoint": alternating_notes}
+        
+    except Exception as e:
+        print(f"Error generating counterpoint: {str(e)}")
+        return {"error": str(e)}
+
+def snap_to_scale(midi_note, scale_pitches):
+    """Snap a MIDI note to the nearest note in the scale."""
+    # Get the note within an octave (0-11)
+    note_class = midi_note % 12
+    octave = midi_note // 12
+    
+    # Find scale degrees within the octave
+    scale_degrees = [p % 12 for p in scale_pitches]
+    scale_degrees = sorted(list(set(scale_degrees)))  # Remove duplicates and sort
+    
+    # Find the closest scale degree
+    closest_degree = min(scale_degrees, key=lambda x: abs(x - note_class))
+    
+    # Reconstruct the MIDI note
+    result = octave * 12 + closest_degree
+    
+    # Handle edge cases where snapping might have moved us too far
+    if abs(result - midi_note) > 6:  # More than a tritone away
+        # Try the next octave
+        if result < midi_note:
+            result += 12
+        else:
+            result -= 12
+    
+    return result

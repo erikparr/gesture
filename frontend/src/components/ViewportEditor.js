@@ -30,9 +30,10 @@ const ViewportEditor = ({
     { id: 'transpose', label: 'Transpose', hasSubmenu: true },
     { id: 'invert', label: 'Invert Pitch', hasSubmenu: false },
     { id: 'humanize', label: 'Humanize', hasSubmenu: false },
+    { id: 'counterpoint', label: 'Add Counterpoint', hasSubmenu: false },
   ];
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!selectedFunction || !notes || notes.length === 0) return;
     
     console.log('ViewportEditor handleApply:', {
@@ -88,6 +89,50 @@ const ViewportEditor = ({
       case 'humanize':
         transformedNotes = transforms.humanizeNotes(viewportNotes);
         break;
+        
+      case 'counterpoint':
+        try {
+          const response = await fetch('http://localhost:8000/generate_counterpoint', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              notes: viewportNotes.map(n => ({
+                midi: n.midi,
+                time: n.time,
+                duration: n.duration,
+                velocity: n.velocity || 0.7
+              })),
+              key: rootNote,
+              scale_type: selectedScale
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to generate counterpoint');
+          }
+          
+          const data = await response.json();
+          if (data.error) {
+            alert('Error generating counterpoint: ' + data.error);
+            return;
+          }
+          
+          // The API now returns ALL notes (original + counterpoint) with proper timing
+          // Each note already has an ID from the backend
+          const allNotesWithTimeline = data.counterpoint;
+          
+          // Replace all notes with the new alternating timeline
+          onApplyTransform(allNotesWithTimeline);
+          setShowDropdown(false);
+          setSubMenuOpen('');
+          return;
+        } catch (error) {
+          console.error('Error calling counterpoint API:', error);
+          alert('Failed to generate counterpoint');
+          return;
+        }
         
       default:
         return;
