@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import './Timeline.css';
 
-const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = false, onNotesChange }) => {
+const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = false, onNotesChange, playbackTime }) => {
 
   
   // Create editable version with IDs when in edit mode
@@ -380,7 +380,31 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
         }
       });
     }
-  }, [displayData, liveNotes, zoom, scrollX, isRecording, editMode, selectedNotes, dragState]);
+    
+    // Draw playhead if playing
+    if (playbackTime !== null && playbackTime !== undefined) {
+      const playheadX = timeToPixels(playbackTime);
+      
+      // Only draw if visible
+      if (playheadX >= 0 && playheadX <= width) {
+        ctx.strokeStyle = '#FF5722';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(playheadX, 0);
+        ctx.lineTo(playheadX, height);
+        ctx.stroke();
+        
+        // Draw time indicator
+        ctx.fillStyle = '#FF5722';
+        ctx.font = 'bold 12px monospace';
+        const timeText = `${playbackTime.toFixed(2)}s`;
+        const textWidth = ctx.measureText(timeText).width;
+        ctx.fillRect(playheadX - textWidth/2 - 4, 0, textWidth + 8, 20);
+        ctx.fillStyle = 'white';
+        ctx.fillText(timeText, playheadX - textWidth/2, 14);
+      }
+    }
+  }, [displayData, liveNotes, zoom, scrollX, isRecording, editMode, selectedNotes, dragState, playbackTime]);
   
   const handleWheel = (e) => {
     if (e.ctrlKey || e.metaKey) {

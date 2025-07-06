@@ -23,6 +23,7 @@ function App() {
   const [selectedScale, setSelectedScale] = useState('major');
   const [rootNote, setRootNote] = useState('C');
   const [octave, setOctave] = useState(4);
+  const [playbackTime, setPlaybackTime] = useState(null);
   const recordButtonRef = useRef(null);
 
   // Load settings on component mount
@@ -336,6 +337,7 @@ function App() {
         liveNotes={liveNotes} 
         isRecording={isRecording}
         editMode={editMode}
+        playbackTime={playbackTime}
         onNotesChange={(newData) => {
           console.log('Notes changed, updating parsedMidi:', newData);
           setParsedMidi(newData);
@@ -345,7 +347,7 @@ function App() {
       {midiData && (
         <div style={{ marginTop: '16px' }}>
           <p style={{ color: 'green' }}>MIDI generated successfully!</p>
-          <MidiPlayer parsedMidi={parsedMidi} />
+          <MidiPlayer parsedMidi={parsedMidi} onPlaybackProgress={setPlaybackTime} />
         </div>
       )}
     </div>

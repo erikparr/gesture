@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import * as Tone from 'tone';
 
-const MidiPlayer = ({ parsedMidi }) => {
+const MidiPlayer = ({ parsedMidi, onPlaybackProgress }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const synthRef = useRef(null);
+  const playbackIntervalRef = useRef(null);
 
   const playMidi = async () => {
     if (!parsedMidi || !parsedMidi.tracks || parsedMidi.tracks.length === 0) return;
@@ -48,9 +49,31 @@ const MidiPlayer = ({ parsedMidi }) => {
         maxTime = Math.max(maxTime, note.time + note.duration);
       });
 
+      // Track playback progress
+      const startTime = Date.now();
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+      
+      playbackIntervalRef.current = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        if (onPlaybackProgress) {
+          onPlaybackProgress(elapsed);
+        }
+      }, 50); // Update every 50ms
+
       // Stop playing indicator after all notes finish
       const stopTime = Math.max(1000, maxTime * 1000 + 500); // At least 1 second
-      setTimeout(() => setIsPlaying(false), stopTime);
+      setTimeout(() => {
+        setIsPlaying(false);
+        if (playbackIntervalRef.current) {
+          clearInterval(playbackIntervalRef.current);
+          playbackIntervalRef.current = null;
+        }
+        if (onPlaybackProgress) {
+          onPlaybackProgress(null); // Signal playback ended
+        }
+      }, stopTime);
     } catch (error) {
       console.error('Error playing MIDI:', error);
       setIsPlaying(false);
