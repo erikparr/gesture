@@ -113,15 +113,55 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 - **Orange bars**: Completed notes during recording session
 - **Green bars**: Final recorded/generated notes
 
+## Multi-Layer Architecture
+
+### Layer Management
+- **3 Independent Layers**: Each with separate MIDI data, edit modes, and controls
+- **Layer State Structure**: Each layer maintains its own:
+  - MIDI data (raw and parsed)
+  - Edit mode state
+  - Selected notes
+  - Mute/Solo status
+  - Zoom level (shared across layers)
+- **Synchronized Playback**: All layers play together with mute/solo controls
+- **Independent Editing**: Each layer can be edited separately
+
+### Multi-Layer Features
+- **Load All Layers**: Upload JSON file to populate all 3 layers simultaneously
+- **Play All**: Synchronized playback of all non-muted layers
+- **Clear All**: Reset all layers to empty state
+- **Individual Layer Controls**: Generate, Record, Edit, Save per layer
+- **Mute/Solo**: Control which layers are heard during playback
+- **Visual Layer Headers**: Each layer shows name and mute/solo buttons
+
+### JSON Melody Format
+```json
+{
+  "layer1": {
+    "pattern": [60, 62, 64, 65, 67],
+    "duration": 0.5
+  },
+  "layer2": {
+    "pattern": [48, 50, 52, 53, 55],
+    "duration": 1.0
+  },
+  "layer3": {
+    "pattern": [72, 74, 76, 77, 79],
+    "duration": 0.25
+  }
+}
+```
+
 ## Timeline Editor Features
 
 ### Current Implementation
-- Canvas-based rendering (1200x600px) - always visible
+- Canvas-based rendering (1200x200px per layer) - always visible
 - Visual representation of MIDI notes on a grid
 - Zoom controls (10% to 500%) with buttons or Ctrl/Cmd+scroll
 - Horizontal scrolling with mouse wheel
 - Note height visualization based on MIDI note number (0-127)
 - Grid background for timing reference
+- Multi-layer view with 3 stacked timelines
 
 ### Edit Mode Features
 - **Toggle Edit Mode**: Enable/disable note editing with visual indicator
@@ -161,8 +201,29 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
   "rootNote": "C", 
   "octave": 4,
   "zoomLevel": 100,
-  "editMode": false,
-  "lastMidiData": "[serialized MIDI data]"
+  "layers": [
+    {
+      "id": 0,
+      "midiData": "[base64 encoded MIDI]",
+      "editMode": false,
+      "mute": false,
+      "solo": false
+    },
+    {
+      "id": 1,
+      "midiData": "[base64 encoded MIDI]",
+      "editMode": false,
+      "mute": false,
+      "solo": false
+    },
+    {
+      "id": 2,
+      "midiData": "[base64 encoded MIDI]",
+      "editMode": false,
+      "mute": false,
+      "solo": false
+    }
+  ]
 }
 ```
 
@@ -178,13 +239,16 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 
 1. Start backend: `cd backend && source venv/bin/activate && uvicorn main:app --reload`
 2. Start frontend: `cd frontend && npm start`
-3. **Select Scale**: Choose scale type, root note, and octave from toolbar
-4. **Generate MIDI**: Click "Generate MIDI" to create scale pattern with selected parameters
-5. **Record MIDI**: Connect MIDI device and click "Record MIDI" (max 10 seconds)
-6. **Edit Notes**: Enable "Edit Mode" to select and drag notes
-7. **Save Settings**: Click "Save Settings" to persist current configuration
-8. **Save File**: Click "Save MIDI" to download edited composition
-9. **Playback**: Use "Play MIDI" to hear current composition
+3. **Multi-Layer Mode**: Work with 3 independent layers simultaneously
+4. **Load Melodies**: Use "Load All Layers" to import JSON melody file
+5. **Select Scale**: Choose scale type, root note, and octave from toolbar
+6. **Generate MIDI**: Click "Generate MIDI" on any layer to create scale pattern
+7. **Record MIDI**: Connect MIDI device and click "Record MIDI" on any layer (max 10 seconds)
+8. **Edit Notes**: Enable "Edit Mode" per layer to select and drag notes
+9. **Mute/Solo**: Control which layers play during "Play All"
+10. **Save Settings**: Click "Save Settings" to persist all layers and configuration
+11. **Save File**: Click "Save MIDI" on any layer to download that layer's composition
+12. **Playback**: Use "Play MIDI" for single layer or "Play All" for multi-layer playback
 
 ## Error Handling
 
