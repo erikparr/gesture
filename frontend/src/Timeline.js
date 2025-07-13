@@ -53,12 +53,24 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
   const [selectedNotes, setSelectedNotes] = useState(new Set());
   const [dragState, setDragState] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [dragSelection, setDragSelection] = useState({
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    currentX: 0,
+    currentY: 0,
+    modifiers: { shift: false, ctrl: false }
+  });
+  const [durationScale, setDurationScale] = useState(100); // 100% = normal duration
+  const [originalDurations, setOriginalDurations] = useState(new Map()); // Store original durations
 
   // Clear selection when edit mode is disabled
   useEffect(() => {
     if (!editMode) {
       setSelectedNotes(new Set());
       setDragState(null);
+      setDurationScale(100);
+      setOriginalDurations(new Map());
     }
   }, [editMode]);
   
@@ -143,11 +155,19 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
           newSelected.delete(clickedNote.id);
         } else {
           newSelected.add(clickedNote.id);
+          // Store original duration if not already stored
+          if (!originalDurations.has(clickedNote.id)) {
+            setOriginalDurations(prev => new Map(prev).set(clickedNote.id, clickedNote.duration));
+          }
         }
         setSelectedNotes(newSelected);
       } else if (!selectedNotes.has(clickedNote.id)) {
         // Select only this note
         setSelectedNotes(new Set([clickedNote.id]));
+        // Store original duration if not already stored
+        if (!originalDurations.has(clickedNote.id)) {
+          setOriginalDurations(prev => new Map(prev).set(clickedNote.id, clickedNote.duration));
+        }
       }
       
       // Start drag
@@ -158,8 +178,20 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
         originalNotes: new Map()
       });
     } else {
-      // Clear selection
-      setSelectedNotes(new Set());
+      // Start drag selection
+      setDragSelection({
+        isDragging: true,
+        startX: x,
+        startY: y,
+        currentX: x,
+        currentY: y,
+        modifiers: { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }
+      });
+      
+      // Clear selection unless shift is held
+      if (!e.shiftKey) {
+        setSelectedNotes(new Set());
+      }
     }
   };
 
@@ -171,7 +203,14 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
     
     setMousePos({ x, y });
     
-    if (editMode && dragState && dragState.isDragging) {
+    if (editMode && dragSelection.isDragging) {
+      // Update drag selection box
+      setDragSelection(prev => ({
+        ...prev,
+        currentX: x,
+        currentY: y
+      }));
+    } else if (editMode && dragState && dragState.isDragging) {
       const deltaX = x - dragState.startX;
       const deltaY = y - dragState.startY;
       const deltaTime = deltaX / (PIXELS_PER_SECOND * zoom / 100);
@@ -189,32 +228,111 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
   };
 
   const handleMouseUp = (e) => {
-    if (!editMode || !dragState || !dragState.isDragging) return;
+    if (!editMode) return;
     
-    const deltaTime = dragState.deltaTime || 0;
-    const deltaMidi = dragState.deltaMidi || 0;
-    
-    if (Math.abs(deltaTime) > 0.01 || Math.abs(deltaMidi) > 0.5) {
-      // Apply the drag to selected notes
-      const newDisplayData = { ...displayData };
-      newDisplayData.tracks = newDisplayData.tracks.map(track => ({
-        ...track,
-        notes: track.notes.map(note => {
-          if (selectedNotes.has(note.id)) {
-            const newTime = Math.max(0, note.time + deltaTime);
-            const newMidi = Math.max(0, Math.min(127, note.midi + deltaMidi));
-            return { ...note, time: newTime, midi: newMidi };
-          }
-          return note;
-        })
-      }));
+    // Handle drag selection
+    if (dragSelection.isDragging) {
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       
-      if (onNotesChange) {
-        onNotesChange(newDisplayData);
+      // Calculate selection box bounds (handle negative dimensions)
+      const x1 = Math.min(dragSelection.startX, x);
+      const x2 = Math.max(dragSelection.startX, x);
+      const y1 = Math.min(dragSelection.startY, y);
+      const y2 = Math.max(dragSelection.startY, y);
+      
+      // Find all notes in the selection box
+      const notesInBox = [];
+      if (displayData && displayData.tracks) {
+        displayData.tracks.forEach((track, trackIndex) => {
+          track.notes.forEach((note, noteIndex) => {
+            const noteX = timeToPixels(note.time);
+            const noteY = midiNoteToY(note.midi);
+            const noteWidth = note.duration * PIXELS_PER_SECOND * zoom / 100;
+            const noteId = note.id || `note-${trackIndex}-${noteIndex}`;
+            
+            // Check if note overlaps with selection box
+            if (!(noteX + noteWidth < x1 || noteX > x2 || 
+                  noteY + NOTE_HEIGHT/2 < y1 || noteY - NOTE_HEIGHT/2 > y2)) {
+              notesInBox.push(noteId);
+            }
+          });
+        });
       }
+      
+      // Update selection based on modifiers
+      if (dragSelection.modifiers.shift) {
+        // Add to existing selection
+        setSelectedNotes(prev => new Set([...prev, ...notesInBox]));
+      } else if (dragSelection.modifiers.ctrl) {
+        // Toggle selection
+        setSelectedNotes(prev => {
+          const newSet = new Set(prev);
+          notesInBox.forEach(id => {
+            if (newSet.has(id)) {
+              newSet.delete(id);
+            } else {
+              newSet.add(id);
+            }
+          });
+          return newSet;
+        });
+      } else {
+        // Replace selection
+        setSelectedNotes(new Set(notesInBox));
+      }
+      
+      // Store original durations for newly selected notes
+      const newOriginalDurations = new Map(originalDurations);
+      displayData.tracks.forEach(track => {
+        track.notes.forEach(note => {
+          if (notesInBox.includes(note.id) && !originalDurations.has(note.id)) {
+            newOriginalDurations.set(note.id, note.duration);
+          }
+        });
+      });
+      setOriginalDurations(newOriginalDurations);
+      
+      // Clear drag selection
+      setDragSelection({
+        isDragging: false,
+        startX: 0,
+        startY: 0,
+        currentX: 0,
+        currentY: 0,
+        modifiers: { shift: false, ctrl: false }
+      });
     }
     
-    setDragState(null);
+    // Handle note dragging
+    else if (dragState && dragState.isDragging) {
+      const deltaTime = dragState.deltaTime || 0;
+      const deltaMidi = dragState.deltaMidi || 0;
+      
+      if (Math.abs(deltaTime) > 0.01 || Math.abs(deltaMidi) > 0.5) {
+        // Apply the drag to selected notes
+        const newDisplayData = { ...displayData };
+        newDisplayData.tracks = newDisplayData.tracks.map(track => ({
+          ...track,
+          notes: track.notes.map(note => {
+            if (selectedNotes.has(note.id)) {
+              const newTime = Math.max(0, note.time + deltaTime);
+              const newMidi = Math.max(0, Math.min(127, note.midi + deltaMidi));
+              return { ...note, time: newTime, midi: newMidi };
+            }
+            return note;
+          })
+        }));
+        
+        if (onNotesChange) {
+          onNotesChange(newDisplayData);
+        }
+      }
+      
+      setDragState(null);
+    }
   };
   
   useEffect(() => {
@@ -382,6 +500,25 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
       });
     }
     
+    // Draw drag selection box
+    if (dragSelection.isDragging) {
+      // Calculate box bounds
+      const x1 = Math.min(dragSelection.startX, dragSelection.currentX);
+      const x2 = Math.max(dragSelection.startX, dragSelection.currentX);
+      const y1 = Math.min(dragSelection.startY, dragSelection.currentY);
+      const y2 = Math.max(dragSelection.startY, dragSelection.currentY);
+      const boxWidth = x2 - x1;
+      const boxHeight = y2 - y1;
+      
+      // Draw selection box
+      ctx.fillStyle = 'rgba(33, 150, 243, 0.2)';
+      ctx.fillRect(x1, y1, boxWidth, boxHeight);
+      
+      ctx.strokeStyle = '#2196F3';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x1, y1, boxWidth, boxHeight);
+    }
+    
     // Draw playhead if playing
     if (playbackTime !== null && playbackTime !== undefined) {
       const playheadX = timeToPixels(playbackTime);
@@ -405,7 +542,7 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
         ctx.fillText(timeText, playheadX - textWidth/2, 14);
       }
     }
-  }, [displayData, liveNotes, zoom, scrollX, isRecording, editMode, selectedNotes, dragState, playbackTime]);
+  }, [displayData, liveNotes, zoom, scrollX, isRecording, editMode, selectedNotes, dragState, playbackTime, dragSelection]);
   
   const handleWheel = (e) => {
     if (e.ctrlKey || e.metaKey) {
@@ -440,6 +577,31 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
     }
   };
 
+  const handleDurationScaleChange = (newScale) => {
+    setDurationScale(newScale);
+    
+    // Apply duration scaling to selected notes
+    if (selectedNotes.size > 0 && displayData && displayData.tracks) {
+      const scaleFactor = newScale / 100;
+      const newDisplayData = { ...displayData };
+      newDisplayData.tracks = newDisplayData.tracks.map(track => ({
+        ...track,
+        notes: track.notes.map(note => {
+          if (selectedNotes.has(note.id)) {
+            // Use original duration if available, otherwise current duration
+            const baseDuration = originalDurations.get(note.id) || note.duration;
+            return { ...note, duration: baseDuration * scaleFactor };
+          }
+          return note;
+        })
+      }));
+      
+      if (onNotesChange) {
+        onNotesChange(newDisplayData);
+      }
+    }
+  };
+
   return (
     <div className="timeline-container">
       {editMode && displayData && displayData.tracks && displayData.tracks[0] && (
@@ -456,6 +618,26 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
         <button onClick={() => setZoom(Math.min(500, zoom + 10))}>Zoom In</button>
         <button onClick={() => setZoom(Math.max(10, zoom - 10))}>Zoom Out</button>
         <span>Zoom: {zoom}%</span>
+        {editMode && selectedNotes.size > 0 && (
+          <div style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            marginLeft: '16px',
+            gap: '8px'
+          }}>
+            <label htmlFor="duration-scale">Duration Scale:</label>
+            <input
+              id="duration-scale"
+              type="range"
+              min="1"
+              max="150"
+              value={durationScale}
+              onChange={(e) => handleDurationScaleChange(parseInt(e.target.value))}
+              style={{ width: '100px' }}
+            />
+            <span>{durationScale}%</span>
+          </div>
+        )}
         {editMode && (
           <span style={{ 
             marginLeft: '16px', 

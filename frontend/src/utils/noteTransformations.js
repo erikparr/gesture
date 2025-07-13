@@ -157,6 +157,13 @@ export const humanizeNotes = (notes, maxVariation = 0.05) => {
   }));
 };
 
+export const uniformDuration = (notes, targetDuration) => {
+  return notes.map(note => ({
+    ...note,
+    duration: targetDuration
+  }));
+};
+
 // Helper function to get notes within viewport
 export const getNotesInViewport = (notes, viewportStart, viewportEnd) => {
   return notes.filter(note => 

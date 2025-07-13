@@ -1,0 +1,160 @@
+react refresh:37  * Tone.js v15.1.22 * 
+react refresh:37 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio
+testAudioScheduledSourceNodeStartMethodNegativeParametersSupport @ test-audio-scheduled-source-node-start-method-negative-parameters-support.ts:7
+(anonymous) @ native-constant-source-node-factory.ts:27
+(anonymous) @ cache-test-result.ts:18
+(anonymous) @ native-constant-source-node-factory.ts:27
+ConstantSourceNode @ constant-source-node-constructor.ts:45
+createConstantSource @ base-audio-context-constructor.ts:92
+createConstantSource @ Context.ts:201
+ToneConstantSource @ ToneConstantSource.ts:32
+Signal @ Signal.ts:75
+TickSignal @ TickSignal.ts:44
+TickSource @ TickSource.ts:89
+Clock @ Clock.ts:90
+TransportClass @ Transport.ts:199
+(anonymous) @ Transport.ts:818
+(anonymous) @ ContextInitialization.ts:23
+initializeContext @ ContextInitialization.ts:23
+initialize @ Context.ts:161
+get transport @ Context.ts:306
+./node_modules/tone/build/esm/index.js @ index.ts:39
+options.factory @ react refresh:37
+__webpack_require__ @ bootstrap:22
+fn @ hot module replacement:61
+hotRequire @ react refresh:20
+./src/components/MidiPlayer.js @ GenerateButton.js:24
+options.factory @ react refresh:37
+__webpack_require__ @ bootstrap:22
+fn @ hot module replacement:61
+hotRequire @ react refresh:20
+./src/App.js @ log.js:78
+options.factory @ react refresh:37
+__webpack_require__ @ bootstrap:22
+fn @ hot module replacement:61
+hotRequire @ react refresh:20
+./src/index.js @ ViewportEditor.js:284
+options.factory @ react refresh:37
+__webpack_require__ @ bootstrap:22
+(anonymous) @ startup:7
+(anonymous) @ startup:7
+react refresh:37 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio
+start @ constant-source-node-constructor.ts:88
+start @ ToneConstantSource.ts:81
+Signal @ Signal.ts:83
+TickSignal @ TickSignal.ts:44
+TickSource @ TickSource.ts:89
+Clock @ Clock.ts:90
+TransportClass @ Transport.ts:199
+(anonymous) @ Transport.ts:818
+(anonymous) @ ContextInitialization.ts:23
+initializeContext @ ContextInitialization.ts:23
+initialize @ Context.ts:161
+get transport @ Context.ts:306
+./node_modules/tone/build/esm/index.js @ index.ts:39
+options.factory @ react refresh:37
+__webpack_require__ @ bootstrap:22
+fn @ hot module replacement:61
+hotRequire @ react refresh:20
+./src/components/MidiPlayer.js @ GenerateButton.js:24
+options.factory @ react refresh:37
+__webpack_require__ @ bootstrap:22
+fn @ hot module replacement:61
+hotRequire @ react refresh:20
+./src/App.js @ log.js:78
+options.factory @ react refresh:37
+__webpack_require__ @ bootstrap:22
+fn @ hot module replacement:61
+hotRequire @ react refresh:20
+./src/index.js @ ViewportEditor.js:284
+options.factory @ react refresh:37
+__webpack_require__ @ bootstrap:22
+(anonymous) @ startup:7
+(anonymous) @ startup:7
+Timeline.js:10 useMemo displayData - inputs: {midiData: 'null', hasTracks: 'no', editMode: false}
+Timeline.js:17 useMemo returning null - invalid midiData
+Timeline.js:224 Timeline rendering, editMode: false displayData: null
+Timeline.js:224 Timeline rendering, editMode: false displayData: null
+MidiRecorder.js:56 Connecting MIDI device: USB MIDI Device
+MidiRecorder.js:56 Connecting MIDI device: Keystation 61 MK3 (USB MIDI)
+MidiRecorder.js:56 Connecting MIDI device: Keystation 61 MK3 (Transport)
+MidiRecorder.js:56 Connecting MIDI device: MIDI Mix
+App.js:86 MIDI Recorder initialized, devices: (4) [{…}, {…}, {…}, {…}]
+MidiRecorder.js:28 MIDI device state changed: USB MIDI Device connected
+MidiRecorder.js:56 Connecting MIDI device: USB MIDI Device
+MidiRecorder.js:28 MIDI device state changed: Keystation 61 MK3 (USB MIDI) connected
+MidiRecorder.js:56 Connecting MIDI device: Keystation 61 MK3 (USB MIDI)
+MidiRecorder.js:28 MIDI device state changed: Keystation 61 MK3 (Transport) connected
+MidiRecorder.js:56 Connecting MIDI device: Keystation 61 MK3 (Transport)
+MidiRecorder.js:28 MIDI device state changed: MIDI Mix connected
+MidiRecorder.js:56 Connecting MIDI device: MIDI Mix
+App.js:202 Response content-type: audio/midi
+App.js:215 ArrayBuffer size: 135
+App.js:217 Parsed MIDI: Midi {header: Header, tracks: Array(1)}
+App.js:218 MIDI tracks: [Track]
+App.js:219 Setting parsedMidi to: Midi {header: Header, tracks: Array(1)}
+Timeline.js:10 useMemo displayData - inputs: {midiData: 'has data', hasTracks: 'yes', editMode: false}
+Timeline.js:46 useMemo returning original midiData
+Timeline.js:224 Timeline rendering, editMode: false displayData: Midi {header: Header, tracks: Array(1)}
+Timeline.js:303 Rendering notes, displayData.tracks: 1
+Timeline.js:305 Track 0 has 8 notes: (8) [Note, Note, Note, Note, Note, Note, Note, Note]
+Timeline.js:312 Coordinate calculation for note 0: {note.time: 0, PIXELS_PER_SECOND: 100, zoom: 100, scrollX: 0, calculation: '(0 * 100 * 100 / 100) - 0', …}
+Timeline.js:320 Note 0: {time: 0, midi: 65, duration: 0.25, id: undefined, x: 0, …}
+Timeline.js:356 Actually drew note at x:0, y:313.85826771653547, noteWidth:25, height:10
+Timeline.js:357 Fill color: #4caf50, Stroke color: #2e7d32
+Timeline.js:10 useMemo displayData - inputs: {midiData: 'has data', hasTracks: 'yes', editMode: true}
+Timeline.js:22 useMemo creating edit mode data
+Timeline.js:23 Original track 0 notes: (8) [Note, Note, Note, Note, Note, Note, Note, Note]
+Timeline.js:36 Note 0 before: Note {midi: 65, velocity: 0.7086614173228346, noteOffVelocity: 0, ticks: 0, durationTicks: 5040}
+Timeline.js:37 Note 0 after: {time: 0, midi: 65, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-0'}
+Timeline.js:36 Note 1 before: Note {midi: 66, velocity: 0.7086614173228346, noteOffVelocity: 0, ticks: 5040, durationTicks: 5040}
+Timeline.js:37 Note 1 after: {time: 0.25, midi: 66, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-1'}
+Timeline.js:36 Note 2 before: Note {midi: 68, velocity: 0.7086614173228346, noteOffVelocity: 0, ticks: 10080, durationTicks: 5040}
+Timeline.js:37 Note 2 after: {time: 0.5, midi: 68, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-2'}
+Timeline.js:36 Note 3 before: Note {midi: 70, velocity: 0.7086614173228346, noteOffVelocity: 0, ticks: 15120, durationTicks: 5040}
+Timeline.js:37 Note 3 after: {time: 0.75, midi: 70, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-3'}
+Timeline.js:36 Note 4 before: Note {midi: 72, velocity: 0.7086614173228346, noteOffVelocity: 0, ticks: 20160, durationTicks: 5040}
+Timeline.js:37 Note 4 after: {time: 1, midi: 72, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-4'}
+Timeline.js:36 Note 5 before: Note {midi: 73, velocity: 0.7086614173228346, noteOffVelocity: 0, ticks: 25200, durationTicks: 5040}
+Timeline.js:37 Note 5 after: {time: 1.25, midi: 73, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-5'}
+Timeline.js:36 Note 6 before: Note {midi: 75, velocity: 0.7086614173228346, noteOffVelocity: 0, ticks: 30240, durationTicks: 5040}
+Timeline.js:37 Note 6 after: {time: 1.5, midi: 75, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-6'}
+Timeline.js:36 Note 7 before: Note {midi: 77, velocity: 0.7086614173228346, noteOffVelocity: 0, ticks: 35280, durationTicks: 5040}
+Timeline.js:37 Note 7 after: {time: 1.75, midi: 77, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-7'}
+Timeline.js:42 useMemo edit mode result: {tracks: Array(1)}
+Timeline.js:224 Timeline rendering, editMode: true displayData: {tracks: Array(1)}
+Timeline.js:303 Rendering notes, displayData.tracks: 1
+Timeline.js:305 Track 0 has 8 notes: (8) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+Timeline.js:312 Coordinate calculation for note 0: {note.time: 0, PIXELS_PER_SECOND: 100, zoom: 100, scrollX: 0, calculation: '(0 * 100 * 100 / 100) - 0', …}
+Timeline.js:320 Note 0: {time: 0, midi: 65, duration: 0.25, id: 'note-0-0', x: 0, …}
+Timeline.js:356 Actually drew note at x:0, y:313.85826771653547, noteWidth:25, height:10
+Timeline.js:357 Fill color: #4caf50, Stroke color: #2e7d32
+ViewportEditor.js:40 ViewportEditor handleApply: {viewportStart: 0, viewportDuration: 12, notesCount: 8, selectedFunction: 'mirror'}
+App.js:344 Notes changed, updating parsedMidi: {tracks: Array(1)}
+Timeline.js:10 useMemo displayData - inputs: {midiData: 'has data', hasTracks: 'yes', editMode: true}
+Timeline.js:22 useMemo creating edit mode data
+Timeline.js:23 Original track 0 notes: (8) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+Timeline.js:36 Note 0 before: {time: 0, midi: 65, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-0'}
+Timeline.js:37 Note 0 after: {time: 0, midi: 65, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-0'}
+Timeline.js:36 Note 1 before: {time: 0.25, midi: 66, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-1'}
+Timeline.js:37 Note 1 after: {time: 0.25, midi: 66, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-1'}
+Timeline.js:36 Note 2 before: {time: 0.5, midi: 68, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-2'}
+Timeline.js:37 Note 2 after: {time: 0.5, midi: 68, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-2'}
+Timeline.js:36 Note 3 before: {time: 0.75, midi: 70, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-3'}
+Timeline.js:37 Note 3 after: {time: 0.75, midi: 70, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-3'}
+Timeline.js:36 Note 4 before: {time: 1, midi: 72, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-4'}
+Timeline.js:37 Note 4 after: {time: 1, midi: 72, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-4'}
+Timeline.js:36 Note 5 before: {time: 1.25, midi: 73, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-5'}
+Timeline.js:37 Note 5 after: {time: 1.25, midi: 73, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-5'}
+Timeline.js:36 Note 6 before: {time: 1.5, midi: 75, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-6'}
+Timeline.js:37 Note 6 after: {time: 1.5, midi: 75, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-6'}
+Timeline.js:36 Note 7 before: {time: 1.75, midi: 77, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-7'}
+Timeline.js:37 Note 7 after: {time: 1.75, midi: 77, duration: 0.25, velocity: 0.7086614173228346, id: 'note-0-7'}
+Timeline.js:42 useMemo edit mode result: {tracks: Array(1)}
+Timeline.js:224 Timeline rendering, editMode: true displayData: {tracks: Array(1)}
+Timeline.js:303 Rendering notes, displayData.tracks: 1
+Timeline.js:305 Track 0 has 8 notes: (8) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+Timeline.js:312 Coordinate calculation for note 0: {note.time: 0, PIXELS_PER_SECOND: 100, zoom: 100, scrollX: 0, calculation: '(0 * 100 * 100 / 100) - 0', …}
+Timeline.js:320 Note 0: {time: 0, midi: 65, duration: 0.25, id: 'note-0-0', x: 0, …}
+Timeline.js:356 Actually drew note at x:0, y:313.85826771653547, noteWidth:25, height:10
+Timeline.js:357 Fill color: #4caf50, Stroke color: #2e7d32

@@ -19,6 +19,7 @@ const ViewportEditor = ({
   const [scaleFactor, setScaleFactor] = useState(1.0);
   const [shiftAmount, setShiftAmount] = useState(0.5);
   const [transposeAmount, setTransposeAmount] = useState(0);
+  const [uniformDur, setUniformDur] = useState(0.25); // Default 1/4 note
 
   const editFunctions = [
     { id: 'evenly-space', label: 'Evenly Space', hasSubmenu: false },
@@ -29,6 +30,7 @@ const ViewportEditor = ({
     { id: 'align-start', label: 'Align to Start', hasSubmenu: false },
     { id: 'transpose', label: 'Transpose', hasSubmenu: true },
     { id: 'invert', label: 'Invert Pitch', hasSubmenu: false },
+    { id: 'uniform-duration', label: 'Uniform Duration', hasSubmenu: true },
     { id: 'humanize', label: 'Humanize', hasSubmenu: false },
     { id: 'counterpoint', label: 'Add Counterpoint', hasSubmenu: false },
     { id: 'mirror', label: 'Mirror Pattern', hasSubmenu: false },
@@ -85,6 +87,10 @@ const ViewportEditor = ({
         
       case 'invert':
         transformedNotes = transforms.invertNotes(viewportNotes);
+        break;
+        
+      case 'uniform-duration':
+        transformedNotes = transforms.uniformDuration(viewportNotes, uniformDur);
         break;
         
       case 'humanize':
@@ -231,6 +237,21 @@ const ViewportEditor = ({
               min={-12}
               max={12}
             />
+          </div>
+        );
+        
+      case 'uniform-duration':
+        return (
+          <div className="submenu">
+            <label>Duration:</label>
+            <select value={uniformDur} onChange={(e) => setUniformDur(parseFloat(e.target.value))}>
+              <option value={2}>2 beats</option>
+              <option value={1}>1 beat</option>
+              <option value={0.5}>1/2 beat</option>
+              <option value={0.25}>1/4 beat</option>
+              <option value={0.125}>1/8 beat</option>
+              <option value={0.0625}>1/16 beat</option>
+            </select>
           </div>
         );
         
