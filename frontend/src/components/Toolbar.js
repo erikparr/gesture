@@ -54,20 +54,23 @@ const Toolbar = ({
       alignItems: 'center',
       gap: '16px',
       padding: '16px',
-      backgroundColor: '#f5f5f5',
+      backgroundColor: '#1a1a1a',
       borderRadius: '8px',
       marginBottom: '24px',
-      flexWrap: 'wrap'
+      flexWrap: 'wrap',
+      border: '1px solid #333'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <label style={{ fontWeight: 'bold' }}>Scale:</label>
+        <label style={{ fontWeight: 'bold', color: '#e0e0e0' }}>Scale:</label>
         <select 
           value={selectedScale} 
           onChange={(e) => onScaleChange(e.target.value)}
           style={{
             padding: '6px 12px',
             borderRadius: '4px',
-            border: '1px solid #ccc',
+            border: '1px solid #444',
+            backgroundColor: '#2a2a2a',
+            color: '#e0e0e0',
             fontSize: '14px'
           }}
         >
@@ -80,14 +83,16 @@ const Toolbar = ({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <label style={{ fontWeight: 'bold' }}>Root:</label>
+        <label style={{ fontWeight: 'bold', color: '#e0e0e0' }}>Root:</label>
         <select 
           value={rootNote} 
           onChange={(e) => onRootNoteChange(e.target.value)}
           style={{
             padding: '6px 12px',
             borderRadius: '4px',
-            border: '1px solid #ccc',
+            border: '1px solid #444',
+            backgroundColor: '#2a2a2a',
+            color: '#e0e0e0',
             fontSize: '14px'
           }}
         >
@@ -100,14 +105,16 @@ const Toolbar = ({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <label style={{ fontWeight: 'bold' }}>Octave:</label>
+        <label style={{ fontWeight: 'bold', color: '#e0e0e0' }}>Octave:</label>
         <select 
           value={octave} 
           onChange={(e) => onOctaveChange(parseInt(e.target.value))}
           style={{
             padding: '6px 12px',
             borderRadius: '4px',
-            border: '1px solid #ccc',
+            border: '1px solid #444',
+            backgroundColor: '#2a2a2a',
+            color: '#e0e0e0',
             fontSize: '14px'
           }}
         >

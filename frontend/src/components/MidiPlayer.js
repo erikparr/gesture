@@ -87,7 +87,7 @@ const MidiPlayer = ({ parsedMidi, onPlaybackProgress, style }) => {
       style={{
         padding: '8px 16px',
         fontSize: '14px',
-        backgroundColor: '#28a745',
+        backgroundColor: '#059669',
         color: 'white',
         border: 'none',
         borderRadius: '4px',

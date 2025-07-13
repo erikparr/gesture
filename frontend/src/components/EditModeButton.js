@@ -22,14 +22,14 @@ const EditModeButton = ({ editMode, onToggle, disabled, style }) => {
     if (editMode) {
       return {
         ...baseStyle,
-        backgroundColor: disabled ? '#ccc' : '#2196F3',
+        backgroundColor: disabled ? '#374151' : '#2563eb',
         color: 'white',
         ...style
       };
     } else {
       return {
         ...baseStyle,
-        backgroundColor: disabled ? '#ccc' : '#6c757d',
+        backgroundColor: disabled ? '#374151' : '#4b5563',
         color: 'white',
         ...style
       };

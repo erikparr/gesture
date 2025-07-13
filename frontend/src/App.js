@@ -504,9 +504,12 @@ function App() {
       padding: '40px',
       fontFamily: 'Arial, sans-serif',
       maxWidth: '1400px',
-      margin: '0 auto'
+      margin: '0 auto',
+      backgroundColor: '#0a0a0a',
+      minHeight: '100vh',
+      color: '#e0e0e0'
     }}>
-      <h1>MIDI Editor - Multi-Layer Mode</h1>
+      <h1 style={{ color: '#ffffff' }}>MIDI Editor - Multi-Layer Mode</h1>
       
       <Toolbar
         selectedScale={selectedScale}
@@ -523,13 +526,13 @@ function App() {
       
       
       {connectedDevices.length > 0 && (
-        <div style={{ marginTop: '16px', fontSize: '14px', color: '#666' }}>
+        <div style={{ marginTop: '16px', fontSize: '14px', color: '#888' }}>
           Connected MIDI devices: {connectedDevices.map(d => d.name).join(', ')}
         </div>
       )}
       
       {error && (
-        <div style={{ color: 'red', marginTop: '16px' }}>
+        <div style={{ color: '#ff6b6b', marginTop: '16px' }}>
           Error: {error}
         </div>
       )}

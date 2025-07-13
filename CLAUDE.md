@@ -13,16 +13,19 @@
 - React Scripts 5.0.1
 
 ### Key Components
-- `App.js` - Main component handling state and API calls
+- `App.js` - Main component handling multi-layer state and API calls
 - `GenerateButton.js` - Button component for generating MIDI files
 - `RecordButton.js` - Live MIDI recording with countdown and progress indicator
-- `EditModeButton.js` - Toggle button for enabling/disabling edit mode
+- `EditModeButton.js` - Toggle button for enabling/disabling edit mode per layer
 - `SaveMidiButton.js` - Export edited MIDI as downloadable file
 - `MidiPlayer.js` - Component for playing actual MIDI content using Tone.js
 - `Timeline.js` - Interactive canvas-based timeline for visualizing and editing MIDI notes
 - `MidiRecorder.js` - Utility class for Web MIDI API integration and live recording
 - `Toolbar.js` - Scale/key selection and settings management toolbar
 - `SettingsManager.js` - Utility for saving/loading app settings to file
+- `MultiLayerEditor.js` - Container component managing 3 independent timeline layers
+- `MultiLayerToolbar.js` - Toolbar for multi-layer actions (Load All, Play All, Clear All)
+- `MultiLayerPlayer.js` - Handles synchronized playback of multiple layers with mute/solo
 
 ### Frontend Setup Commands
 ```bash
@@ -48,6 +51,8 @@ npm start  # Runs on http://localhost:3000
 - `POST /settings` - Save app settings to file
 - `POST /settings/upload` - Upload settings file
 - `GET /settings/download` - Download settings file
+- `POST /load-melody` - Load melody from JSON file with pattern arrays
+- `POST /load-multi-layer-melody` - Load melodies for all 3 layers from JSON file
 
 ### Backend Setup Commands
 ```bash

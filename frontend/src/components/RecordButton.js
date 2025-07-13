@@ -90,28 +90,28 @@ const RecordButton = forwardRef(({ onRecordComplete, disabled, style }, ref) => 
       case 'countdown':
         return {
           ...baseStyle,
-          backgroundColor: '#FFA500',
+          backgroundColor: '#d97706',
           color: 'white',
           ...style
         };
       case 'recording':
         return {
           ...baseStyle,
-          backgroundColor: '#DC143C',
+          backgroundColor: '#dc2626',
           color: 'white',
           ...style
         };
       case 'processing':
         return {
           ...baseStyle,
-          backgroundColor: '#6c757d',
+          backgroundColor: '#4b5563',
           color: 'white',
           ...style
         };
       default:
         return {
           ...baseStyle,
-          backgroundColor: disabled ? '#ccc' : '#FF6347',
+          backgroundColor: disabled ? '#374151' : '#ef4444',
           color: 'white',
           ...style
         };
