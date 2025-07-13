@@ -6,25 +6,72 @@ import EditModeButton from './components/EditModeButton';
 import SaveMidiButton from './components/SaveMidiButton';
 import MidiPlayer from './components/MidiPlayer';
 import Timeline from './Timeline';
+import MultiLayerEditor from './components/MultiLayerEditor';
 import MidiRecorder from './utils/MidiRecorder';
+import MultiLayerPlayer from './utils/MultiLayerPlayer';
 import Toolbar from './components/Toolbar';
 import SettingsManager from './utils/SettingsManager';
+import * as layerUtils from './utils/layerUtils';
 
 function App() {
-  const [midiData, setMidiData] = useState(null);
-  const [parsedMidi, setParsedMidi] = useState(null);
+  // Layer state structure
+  const [layers, setLayers] = useState([
+    {
+      id: 0,
+      name: 'Layer 1',
+      midiData: null,
+      parsedMidi: null,
+      editMode: false,
+      isRecording: false,
+      liveNotes: [],
+      zoom: 300,
+      scrollX: 0,
+      muted: false
+    },
+    {
+      id: 1,
+      name: 'Layer 2',
+      midiData: null,
+      parsedMidi: null,
+      editMode: false,
+      isRecording: false,
+      liveNotes: [],
+      zoom: 300,
+      scrollX: 0,
+      muted: false
+    },
+    {
+      id: 2,
+      name: 'Layer 3',
+      midiData: null,
+      parsedMidi: null,
+      editMode: false,
+      isRecording: false,
+      liveNotes: [],
+      zoom: 300,
+      scrollX: 0,
+      muted: false
+    }
+  ]);
+  
+  const [activeLayer, setActiveLayer] = useState(0); // Which layer is being targeted
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [midiRecorder, setMidiRecorder] = useState(null);
+  const [multiLayerPlayer] = useState(() => new MultiLayerPlayer());
   const [connectedDevices, setConnectedDevices] = useState([]);
-  const [liveNotes, setLiveNotes] = useState([]);
-  const [isRecording, setIsRecording] = useState(false);
-  const [editMode, setEditMode] = useState(false);
   const [selectedScale, setSelectedScale] = useState('major');
   const [rootNote, setRootNote] = useState('C');
   const [octave, setOctave] = useState(4);
   const [playbackTime, setPlaybackTime] = useState(null);
   const recordButtonRef = useRef(null);
+  
+  // Backward compatibility helpers (temporary)
+  const midiData = layers[activeLayer]?.midiData;
+  const parsedMidi = layers[activeLayer]?.parsedMidi;
+  const editMode = layers[activeLayer]?.editMode;
+  const isRecording = layers[activeLayer]?.isRecording;
+  const liveNotes = layers[activeLayer]?.liveNotes || [];
 
   // Load settings on component mount
   useEffect(() => {
@@ -34,13 +81,13 @@ function App() {
         setSelectedScale(settings.selectedScale);
         setRootNote(settings.rootNote);
         setOctave(settings.octave);
-        setEditMode(settings.editMode);
+        // Note: editMode is now per-layer, not global
         
-        // Load last MIDI data if available
+        // Load last MIDI data if available (to first layer for backward compatibility)
         if (settings.lastMidiData) {
           const deserializedData = SettingsManager.deserializeMidiData(settings.lastMidiData);
           if (deserializedData) {
-            setParsedMidi(deserializedData);
+            setLayers(prev => layerUtils.updateLayerMidi(prev, 0, null, deserializedData));
           }
         }
       } catch (error) {
@@ -72,11 +119,28 @@ function App() {
           setConnectedDevices(devices);
         });
         
+        // Keep track of current active layer in closure
+        let currentActiveLayer = 0;
+        setActiveLayer(layer => {
+          currentActiveLayer = layer;
+          return layer;
+        });
+        
         recorder.setOnLiveNote((eventType, note) => {
           if (eventType === 'noteOn') {
-            setLiveNotes(prev => [...prev, note]);
+            setLayers(prev => {
+              const targetLayer = prev.find(l => l.isRecording) || prev[currentActiveLayer];
+              return layerUtils.updateLayer(prev, targetLayer.id, {
+                liveNotes: [...targetLayer.liveNotes, note]
+              });
+            });
           } else if (eventType === 'noteOff') {
-            setLiveNotes(prev => prev.map(n => n.id === note.id ? note : n));
+            setLayers(prev => {
+              const targetLayer = prev.find(l => l.isRecording) || prev[currentActiveLayer];
+              return layerUtils.updateLayer(prev, targetLayer.id, {
+                liveNotes: targetLayer.liveNotes.map(n => n.id === note.id ? note : n)
+              });
+            });
           }
         });
         
@@ -96,11 +160,14 @@ function App() {
       if (midiRecorder) {
         midiRecorder.destroy();
       }
+      if (multiLayerPlayer) {
+        multiLayerPlayer.dispose();
+      }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 
-  const handleRecordComplete = async (action) => {
+  const handleRecordComplete = async (action, layerId = activeLayer) => {
     if (!midiRecorder) {
       setError('MIDI recorder not initialized');
       return;
@@ -108,31 +175,30 @@ function App() {
 
     if (action === 'start') {
       try {
-        setLiveNotes([]); // Clear any previous live notes
-        setIsRecording(true);
+        setLayers(prev => layerUtils.updateLayerRecording(prev, layerId, true, []));
         midiRecorder.startRecording();
       } catch (err) {
         setError(err.message);
-        setIsRecording(false);
+        setLayers(prev => layerUtils.updateLayerRecording(prev, layerId, false));
         if (recordButtonRef.current) {
           recordButtonRef.current.setError(err.message);
         }
       }
     } else if (action === 'stop') {
-      setIsRecording(false);
+      setLayers(prev => layerUtils.updateLayerRecording(prev, layerId, false));
       const recording = midiRecorder.stopRecording();
       if (recording && recording.events.length > 0) {
         console.log('Recording complete:', recording);
-        await processRecording(recording);
-        setLiveNotes([]); // Clear live notes after processing
+        await processRecording(recording, layerId);
+        setLayers(prev => layerUtils.clearLayerRecording(prev, layerId));
       } else {
         setError('No MIDI events recorded');
-        setLiveNotes([]);
+        setLayers(prev => layerUtils.clearLayerRecording(prev, layerId));
       }
     }
   };
 
-  const processRecording = async (recording) => {
+  const processRecording = async (recording, layerId = activeLayer) => {
     setLoading(true);
     setError(null);
     
@@ -153,7 +219,6 @@ function App() {
       }
       
       const blob = await response.blob();
-      setMidiData(blob);
       
       try {
         const arrayBuffer = await blob.arrayBuffer();
@@ -163,8 +228,8 @@ function App() {
         if (midi.tracks && midi.tracks.length > 0) {
           console.log('First track notes:', midi.tracks[0].notes);
         }
-        console.log('Setting parsedMidi to:', midi);
-        setParsedMidi(midi);
+        console.log('Setting parsedMidi for layer', layerId, ':', midi);
+        setLayers(prev => layerUtils.updateLayerMidi(prev, layerId, blob, midi));
       } catch (parseError) {
         console.error('Error parsing recorded MIDI:', parseError);
         setError('Failed to parse recorded MIDI: ' + parseError.message);
@@ -176,7 +241,7 @@ function App() {
     }
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (layerId = activeLayer) => {
     setLoading(true);
     setError(null);
     
@@ -208,7 +273,6 @@ function App() {
       }
       
       const blob = await response.blob();
-      setMidiData(blob);
       
       try {
         const arrayBuffer = await blob.arrayBuffer();
@@ -216,8 +280,8 @@ function App() {
         const midi = new Midi(arrayBuffer);
         console.log('Parsed MIDI:', midi);
         console.log('MIDI tracks:', midi.tracks);
-        console.log('Setting parsedMidi to:', midi);
-        setParsedMidi(midi);
+        console.log('Setting parsedMidi for layer', layerId, ':', midi);
+        setLayers(prev => layerUtils.updateLayerMidi(prev, layerId, blob, midi));
       } catch (parseError) {
         console.error('Error parsing MIDI:', parseError);
         setError('Failed to parse MIDI file: ' + parseError.message);
@@ -231,13 +295,15 @@ function App() {
 
   const handleSaveSettings = async () => {
     try {
+      // For backward compatibility, save only the first layer's data
+      const firstLayer = layers[0];
       const settings = {
         selectedScale,
         rootNote,
         octave,
-        zoomLevel: 100, // TODO: Get from Timeline
-        editMode,
-        lastMidiData: SettingsManager.serializeMidiData(parsedMidi)
+        zoomLevel: firstLayer?.zoom || 100,
+        editMode: firstLayer?.editMode || false,
+        lastMidiData: SettingsManager.serializeMidiData(firstLayer?.parsedMidi)
       };
       
       await SettingsManager.saveSettings(settings);
@@ -255,12 +321,12 @@ function App() {
         setSelectedScale(result.settings.selectedScale);
         setRootNote(result.settings.rootNote);
         setOctave(result.settings.octave);
-        setEditMode(result.settings.editMode);
+        // Note: editMode is now per-layer
         
         if (result.settings.lastMidiData) {
           const deserializedData = SettingsManager.deserializeMidiData(result.settings.lastMidiData);
           if (deserializedData) {
-            setParsedMidi(deserializedData);
+            setLayers(prev => layerUtils.updateLayerMidi(prev, 0, null, deserializedData));
           }
         }
       }
@@ -280,7 +346,7 @@ function App() {
     }
   };
 
-  const handleLoadMelody = async (file) => {
+  const handleLoadMelody = async (file, layerId = activeLayer) => {
     setLoading(true);
     setError(null);
     
@@ -305,13 +371,12 @@ function App() {
       }
       
       const blob = await response.blob();
-      setMidiData(blob);
       
       try {
         const arrayBuffer = await blob.arrayBuffer();
         const midi = new Midi(arrayBuffer);
-        console.log('Parsed JSON melody:', midi);
-        setParsedMidi(midi);
+        console.log('Parsed JSON melody for layer', layerId, ':', midi);
+        setLayers(prev => layerUtils.updateLayerMidi(prev, layerId, blob, midi));
       } catch (parseError) {
         console.error('Error parsing melody MIDI:', parseError);
         setError('Failed to parse melody: ' + parseError.message);
@@ -323,6 +388,117 @@ function App() {
     }
   };
 
+  const handleLoadAllLayers = async (file) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('http://localhost:8000/load-multi-layer-melody', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load multi-layer melody');
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Process each layer's MIDI data
+      const newLayers = [...layers];
+      
+      for (const [layerKey, base64Midi] of Object.entries(data.layers)) {
+        const layerIndex = parseInt(layerKey.replace('layer', ''));
+        
+        // Convert base64 to blob
+        const binaryString = atob(base64Midi);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'audio/midi' });
+        
+        // Parse MIDI
+        try {
+          const arrayBuffer = await blob.arrayBuffer();
+          const midi = new Midi(arrayBuffer);
+          console.log(`Loaded melody for layer ${layerIndex}:`, midi);
+          
+          // Update the layer
+          newLayers[layerIndex] = {
+            ...newLayers[layerIndex],
+            midiData: blob,
+            parsedMidi: midi
+          };
+        } catch (parseError) {
+          console.error(`Error parsing MIDI for layer ${layerIndex}:`, parseError);
+        }
+      }
+      
+      setLayers(newLayers);
+      setError(null);
+      console.log('All layers loaded successfully');
+    } catch (err) {
+      setError('Failed to load all layers: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearAllLayers = () => {
+    const clearedLayers = layers.map(layer => ({
+      ...layer,
+      midiData: null,
+      parsedMidi: null,
+      editMode: false,
+      isRecording: false,
+      liveNotes: [],
+      zoom: 300,
+      scrollX: 0
+    }));
+    setLayers(clearedLayers);
+    setError(null);
+    console.log('All layers cleared');
+  };
+
+  const handlePlayAll = () => {
+    multiLayerPlayer.playAll(layers, (time) => {
+      setPlaybackTime(time);
+    });
+  };
+
+  const handleStopAll = () => {
+    multiLayerPlayer.stopAll();
+    setPlaybackTime(null);
+  };
+
+  const handleMuteLayer = (layerId, muted) => {
+    multiLayerPlayer.muteLayer(layerId, muted);
+    // Update layer state to reflect mute status
+    setLayers(prev => layerUtils.updateLayer(prev, layerId, { muted }));
+  };
+
+  const handleSoloLayer = (layerId) => {
+    // Solo means mute all others
+    layers.forEach(layer => {
+      const shouldMute = layer.id !== layerId;
+      multiLayerPlayer.muteLayer(layer.id, shouldMute);
+    });
+    
+    // Update all layer states
+    setLayers(prev => prev.map(layer => ({
+      ...layer,
+      muted: layer.id !== layerId
+    })));
+  };
+
   return (
     <div style={{
       padding: '40px',
@@ -330,8 +506,7 @@ function App() {
       maxWidth: '1400px',
       margin: '0 auto'
     }}>
-      <h1>MIDI Editor</h1>
-      <p>Generate and play MIDI files</p>
+      <h1>MIDI Editor - Multi-Layer Mode</h1>
       
       <Toolbar
         selectedScale={selectedScale}
@@ -359,32 +534,31 @@ function App() {
         </div>
       )}
       
-      <Timeline 
-        midiData={parsedMidi} 
-        liveNotes={liveNotes} 
-        isRecording={isRecording}
-        editMode={editMode}
-        playbackTime={playbackTime}
+      <MultiLayerEditor
+        layers={layers}
+        onLayerUpdate={(layerId, updates) => {
+          setLayers(prev => layerUtils.updateLayer(prev, layerId, updates));
+        }}
+        activeLayer={activeLayer}
+        onActiveLayerChange={setActiveLayer}
         selectedScale={selectedScale}
         rootNote={rootNote}
-        onNotesChange={(newData) => {
-          console.log('Notes changed, updating parsedMidi:', newData);
-          setParsedMidi(newData);
-        }}
+        octave={octave}
+        loading={loading}
+        midiRecorder={midiRecorder}
+        recordButtonRef={recordButtonRef}
         onGenerate={handleGenerate}
         onRecordComplete={handleRecordComplete}
-        onEditModeToggle={setEditMode}
-        loading={loading}
-        recordButtonRef={recordButtonRef}
-        midiRecorder={midiRecorder}
+        onLoadMelody={handleLoadMelody}
+        onLoadAllLayers={handleLoadAllLayers}
+        onClearAllLayers={handleClearAllLayers}
+        onPlayAll={handlePlayAll}
+        onStopAll={handleStopAll}
+        onMuteLayer={handleMuteLayer}
+        onSoloLayer={handleSoloLayer}
+        onPlaybackProgress={setPlaybackTime}
       />
       
-      {midiData && (
-        <div style={{ marginTop: '16px' }}>
-          <p style={{ color: 'green' }}>MIDI generated successfully!</p>
-          <MidiPlayer parsedMidi={parsedMidi} onPlaybackProgress={setPlaybackTime} />
-        </div>
-      )}
     </div>
   );
 }

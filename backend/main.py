@@ -473,3 +473,84 @@ async def load_json_melody(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Error loading JSON melody: {str(e)}")
         return {"error": str(e)}
+
+@app.post("/load-multi-layer-melody")
+async def load_multi_layer_melody(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        melody_data = json.loads(contents)
+        
+        # Validate JSON structure
+        if "melodies" not in melody_data or not melody_data["melodies"]:
+            return {"error": "Invalid JSON format: missing melodies array"}
+        
+        # Process each layer
+        layer_midis = {}
+        
+        for melody in melody_data["melodies"]:
+            if not melody.get("active", False):
+                continue
+                
+            layer_key = melody.get("key", "")
+            if layer_key not in ["layer1", "layer2", "layer3"]:
+                continue
+                
+            pattern = melody.get("pattern", [])
+            if not pattern:
+                continue
+                
+            velocity_first = melody.get("velocityFirst", 1.0)
+            velocity_last = melody.get("velocityLast", 1.0)
+            
+            # Create a new stream for this layer
+            s = stream.Stream()
+            s.append(tempo.TempoIndication(number=120))
+            s.append(meter.TimeSignature('4/4'))
+            
+            # Convert pattern to MIDI notes
+            default_duration = 0.5  # Half second per note
+            
+            for i, midi_note in enumerate(pattern):
+                # Calculate velocity interpolation
+                if len(pattern) > 1:
+                    velocity_ratio = i / (len(pattern) - 1)
+                    velocity = velocity_first + (velocity_last - velocity_first) * velocity_ratio
+                else:
+                    velocity = velocity_first
+                
+                # Normalize velocity to 0-1 range, then to MIDI range
+                velocity = max(0.1, min(1.0, velocity))  # Clamp between 0.1 and 1.0
+                
+                # Create note
+                n = note.Note(midi=midi_note)
+                n.duration = duration.Duration(quarterLength=default_duration * 2)  # Assuming 120 BPM
+                n.offset = i * default_duration * 2  # Sequential timing
+                n.volume.velocity = int(velocity * 127)
+                s.insert(n.offset, n)
+            
+            # Convert to MIDI bytes
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.mid', delete=False) as tmp_file:
+                s.write('midi', fp=tmp_file.name)
+                tmp_file.flush()
+                with open(tmp_file.name, 'rb') as f:
+                    midi_bytes = f.read()
+                os.unlink(tmp_file.name)
+            
+            # Map layer key to layer index
+            layer_index = int(layer_key[-1]) - 1  # layer1 -> 0, layer2 -> 1, layer3 -> 2
+            layer_midis[layer_index] = midi_bytes
+        
+        # Return the MIDI files as a multipart response
+        import base64
+        response_data = {}
+        for layer_index, midi_bytes in layer_midis.items():
+            response_data[f"layer{layer_index}"] = base64.b64encode(midi_bytes).decode('utf-8')
+        
+        return {"layers": response_data}
+        
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON file"}
+    except Exception as e:
+        print(f"Error loading multi-layer melody: {str(e)}")
+        return {"error": str(e)}

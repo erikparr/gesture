@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import * as Tone from 'tone';
 
-const MidiPlayer = ({ parsedMidi, onPlaybackProgress }) => {
+const MidiPlayer = ({ parsedMidi, onPlaybackProgress, style }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const synthRef = useRef(null);
   const playbackIntervalRef = useRef(null);
@@ -81,24 +81,23 @@ const MidiPlayer = ({ parsedMidi, onPlaybackProgress }) => {
   };
 
   return (
-    <div style={{ marginTop: '16px' }}>
-      <button 
-        onClick={playMidi}
-        disabled={!parsedMidi || isPlaying}
-        style={{
-          padding: '8px 16px',
-          fontSize: '14px',
-          backgroundColor: '#28a745',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: (!parsedMidi || isPlaying) ? 'not-allowed' : 'pointer',
-          opacity: (!parsedMidi || isPlaying) ? 0.6 : 1
-        }}
-      >
-        {isPlaying ? 'Playing...' : 'Play MIDI'}
-      </button>
-    </div>
+    <button 
+      onClick={playMidi}
+      disabled={!parsedMidi || isPlaying}
+      style={{
+        padding: '8px 16px',
+        fontSize: '14px',
+        backgroundColor: '#28a745',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: (!parsedMidi || isPlaying) ? 'not-allowed' : 'pointer',
+        opacity: (!parsedMidi || isPlaying) ? 0.6 : 1,
+        ...style
+      }}
+    >
+      {isPlaying ? 'Playing...' : 'Play MIDI'}
+    </button>
   );
 };
 

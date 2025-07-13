@@ -4,6 +4,7 @@ import GenerateButton from './components/GenerateButton';
 import RecordButton from './components/RecordButton';
 import EditModeButton from './components/EditModeButton';
 import SaveMidiButton from './components/SaveMidiButton';
+import MidiPlayer from './components/MidiPlayer';
 import './Timeline.css';
 
 const Timeline = ({ 
@@ -20,7 +21,11 @@ const Timeline = ({
   onEditModeToggle,
   loading,
   recordButtonRef,
-  midiRecorder
+  midiRecorder,
+  onPlaybackProgress,
+  height = 600, // Configurable height, default 600px
+  layerId = 0,
+  layerName = ''
 }) => {
 
   
@@ -142,29 +147,26 @@ const Timeline = ({
   // Calculate note height based on the visible range
   const NOTE_HEIGHT = useMemo(() => {
     const { minNote, maxNote } = noteRange;
-    const canvasHeight = 600;
     const padding = 20;
-    const usableHeight = canvasHeight - RULER_HEIGHT - (2 * padding);
+    const usableHeight = height - RULER_HEIGHT - (2 * padding);
     const totalNotes = maxNote - minNote + 1;
     // Make notes fill about 80% of the space between grid lines
     return (usableHeight / totalNotes) * 0.8;
-  }, [noteRange]);
+  }, [noteRange, height]);
   
   // Helper functions
   const midiNoteToY = (noteNumber) => {
     const { minNote, maxNote } = noteRange;
-    const canvasHeight = 600;
     const padding = 20;
-    const usableHeight = canvasHeight - RULER_HEIGHT - (2 * padding);
+    const usableHeight = height - RULER_HEIGHT - (2 * padding);
     const yStart = RULER_HEIGHT + padding;
     return yStart + ((maxNote - noteNumber) / (maxNote - minNote)) * usableHeight;
   };
 
   const yToMidiNote = (y) => {
     const { minNote, maxNote } = noteRange;
-    const canvasHeight = 600;
     const padding = 20;
-    const usableHeight = canvasHeight - RULER_HEIGHT - (2 * padding);
+    const usableHeight = height - RULER_HEIGHT - (2 * padding);
     const yStart = RULER_HEIGHT + padding;
     const normalizedY = (y - yStart) / usableHeight;
     return Math.round(maxNote - (normalizedY * (maxNote - minNote)));
@@ -627,7 +629,7 @@ const Timeline = ({
         ctx.fillText(timeText, playheadX - textWidth/2, 14);
       }
     }
-  }, [displayData, liveNotes, zoom, scrollX, isRecording, editMode, selectedNotes, dragState, playbackTime, dragSelection, noteRange, NOTE_HEIGHT]);
+  }, [displayData, liveNotes, zoom, scrollX, isRecording, editMode, selectedNotes, dragState, playbackTime, dragSelection, noteRange, NOTE_HEIGHT, height]);
   
   const handleWheel = (e) => {
     if (e.ctrlKey || e.metaKey) {
@@ -739,6 +741,17 @@ const Timeline = ({
               height: '28px' 
             }}
           />
+          <div style={{ display: 'inline-block', height: '28px' }}>
+            <MidiPlayer 
+              parsedMidi={midiData} 
+              onPlaybackProgress={onPlaybackProgress}
+              style={{ 
+                padding: '4px 12px', 
+                fontSize: '12px',
+                height: '28px' 
+              }}
+            />
+          </div>
           <div style={{ width: '1px', height: '20px', backgroundColor: '#ccc', margin: '0 8px' }} />
           <button 
             onClick={() => setZoom(Math.min(500, zoom + 10))}
@@ -787,7 +800,7 @@ const Timeline = ({
       <canvas 
         ref={canvasRef}
         width={1200}
-        height={600}
+        height={height}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
