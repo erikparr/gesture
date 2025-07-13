@@ -54,6 +54,9 @@ class CounterpointRequest(BaseModel):
     key: str
     scale_type: str
 
+class JsonMelodyData(BaseModel):
+    melody_index: int = 0
+
 app = FastAPI()
 
 # Settings file path
@@ -396,3 +399,77 @@ def snap_to_scale(midi_note, scale_pitches):
             result -= 12
     
     return result
+
+@app.post("/load-json-melody")
+async def load_json_melody(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        melody_data = json.loads(contents)
+        
+        # Validate JSON structure
+        if "melodies" not in melody_data or not melody_data["melodies"]:
+            return {"error": "Invalid JSON format: missing melodies array"}
+        
+        # Use the first active melody or first melody if none are active
+        selected_melody = None
+        for melody in melody_data["melodies"]:
+            if melody.get("active", False):
+                selected_melody = melody
+                break
+        
+        if not selected_melody:
+            selected_melody = melody_data["melodies"][0]
+        
+        # Validate melody structure
+        if "pattern" not in selected_melody:
+            return {"error": "Invalid melody format: missing pattern"}
+        
+        pattern = selected_melody["pattern"]
+        velocity_first = selected_melody.get("velocityFirst", 1.0)
+        velocity_last = selected_melody.get("velocityLast", 1.0)
+        
+        # Create a new stream
+        s = stream.Stream()
+        s.append(tempo.TempoIndication(number=120))
+        s.append(meter.TimeSignature('4/4'))
+        
+        # Convert pattern to MIDI notes
+        default_duration = 0.5  # Half second per note
+        
+        for i, midi_note in enumerate(pattern):
+            # Calculate velocity interpolation
+            if len(pattern) > 1:
+                velocity_ratio = i / (len(pattern) - 1)
+                velocity = velocity_first + (velocity_last - velocity_first) * velocity_ratio
+            else:
+                velocity = velocity_first
+            
+            # Normalize velocity to 0-1 range, then to MIDI range
+            velocity = max(0.1, min(1.0, velocity))  # Clamp between 0.1 and 1.0
+            
+            # Create note
+            n = note.Note(midi=midi_note)
+            n.duration = duration.Duration(quarterLength=default_duration * 2)  # Assuming 120 BPM
+            n.offset = i * default_duration * 2  # Sequential timing
+            n.volume.velocity = int(velocity * 127)
+            s.insert(n.offset, n)
+        
+        # Convert to MIDI bytes
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.mid', delete=False) as tmp_file:
+            s.write('midi', fp=tmp_file.name)
+            tmp_file.flush()
+            with open(tmp_file.name, 'rb') as f:
+                midi_bytes = f.read()
+            os.unlink(tmp_file.name)
+        
+        return Response(
+            content=midi_bytes,
+            media_type="audio/midi",
+            headers={"Content-Disposition": "attachment; filename=json-melody.mid"}
+        )
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON file"}
+    except Exception as e:
+        print(f"Error loading JSON melody: {str(e)}")
+        return {"error": str(e)}

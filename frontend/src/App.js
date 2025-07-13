@@ -280,6 +280,49 @@ function App() {
     }
   };
 
+  const handleLoadMelody = async (file) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('http://localhost:8000/load-json-melody', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load melody');
+      }
+      
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        throw new Error('Backend error: ' + (errorData.error || 'Unknown error'));
+      }
+      
+      const blob = await response.blob();
+      setMidiData(blob);
+      
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const midi = new Midi(arrayBuffer);
+        console.log('Parsed JSON melody:', midi);
+        setParsedMidi(midi);
+      } catch (parseError) {
+        console.error('Error parsing melody MIDI:', parseError);
+        setError('Failed to parse melody: ' + parseError.message);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{
       padding: '40px',
@@ -300,25 +343,9 @@ function App() {
         onSaveSettings={handleSaveSettings}
         onLoadSettings={handleLoadSettings}
         onDownloadSettings={handleDownloadSettings}
+        onLoadMelody={handleLoadMelody}
       />
       
-      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <GenerateButton onGenerate={handleGenerate} loading={loading} />
-        <RecordButton 
-          ref={recordButtonRef}
-          onRecordComplete={handleRecordComplete} 
-          disabled={loading || !midiRecorder}
-        />
-        <EditModeButton 
-          editMode={editMode}
-          onToggle={setEditMode}
-          disabled={loading || isRecording || !parsedMidi}
-        />
-        <SaveMidiButton 
-          editableNotes={parsedMidi}
-          disabled={loading || isRecording}
-        />
-      </div>
       
       {connectedDevices.length > 0 && (
         <div style={{ marginTop: '16px', fontSize: '14px', color: '#666' }}>
@@ -344,6 +371,12 @@ function App() {
           console.log('Notes changed, updating parsedMidi:', newData);
           setParsedMidi(newData);
         }}
+        onGenerate={handleGenerate}
+        onRecordComplete={handleRecordComplete}
+        onEditModeToggle={setEditMode}
+        loading={loading}
+        recordButtonRef={recordButtonRef}
+        midiRecorder={midiRecorder}
       />
       
       {midiData && (

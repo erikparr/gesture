@@ -1,6 +1,6 @@
 import React from 'react';
 
-const EditModeButton = ({ editMode, onToggle, disabled }) => {
+const EditModeButton = ({ editMode, onToggle, disabled, style }) => {
   const handleClick = () => {
     if (!disabled) {
       onToggle(!editMode);
@@ -23,13 +23,15 @@ const EditModeButton = ({ editMode, onToggle, disabled }) => {
       return {
         ...baseStyle,
         backgroundColor: disabled ? '#ccc' : '#2196F3',
-        color: 'white'
+        color: 'white',
+        ...style
       };
     } else {
       return {
         ...baseStyle,
         backgroundColor: disabled ? '#ccc' : '#6c757d',
-        color: 'white'
+        color: 'white',
+        ...style
       };
     }
   };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const SaveMidiButton = ({ editableNotes, disabled }) => {
+const SaveMidiButton = ({ editableNotes, disabled, style }) => {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -68,7 +68,8 @@ const SaveMidiButton = ({ editableNotes, disabled }) => {
       minWidth: '120px',
       backgroundColor: (disabled || saving || !editableNotes) ? '#ccc' : '#17a2b8',
       color: 'white',
-      opacity: (disabled || saving || !editableNotes) ? 0.6 : 1
+      opacity: (disabled || saving || !editableNotes) ? 0.6 : 1,
+      ...style
     };
   };
 

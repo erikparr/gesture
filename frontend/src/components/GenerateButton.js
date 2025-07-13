@@ -1,6 +1,6 @@
 import React from 'react';
 
-const GenerateButton = ({ onGenerate, loading }) => {
+const GenerateButton = ({ onGenerate, loading, style }) => {
   return (
     <button 
       onClick={onGenerate} 
@@ -13,7 +13,8 @@ const GenerateButton = ({ onGenerate, loading }) => {
         border: 'none',
         borderRadius: '4px',
         cursor: loading ? 'not-allowed' : 'pointer',
-        opacity: loading ? 0.6 : 1
+        opacity: loading ? 0.6 : 1,
+        ...style
       }}
     >
       {loading ? 'Generating...' : 'Generate MIDI'}

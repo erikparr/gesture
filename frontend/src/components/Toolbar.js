@@ -9,7 +9,8 @@ const Toolbar = ({
   onOctaveChange,
   onSaveSettings,
   onLoadSettings,
-  onDownloadSettings
+  onDownloadSettings,
+  onLoadMelody
 }) => {
   const scales = [
     { value: 'major', label: 'Major' },
@@ -37,6 +38,13 @@ const Toolbar = ({
     const file = event.target.files[0];
     if (file) {
       onLoadSettings(file);
+    }
+  };
+
+  const handleMelodyUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      onLoadMelody(file);
     }
   };
 
@@ -156,6 +164,24 @@ const Toolbar = ({
             type="file"
             accept=".json"
             onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+        </label>
+
+        <label style={{
+          padding: '8px 16px',
+          backgroundColor: '#9C27B0',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '14px'
+        }}>
+          Load Melody
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleMelodyUpload}
             style={{ display: 'none' }}
           />
         </label>

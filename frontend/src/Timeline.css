@@ -13,17 +13,20 @@
   gap: 10px;
   margin-bottom: 20px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .timeline-controls button {
   background: #4CAF50;
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 4px 12px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   transition: background 0.3s;
+  height: 28px;
+  white-space: nowrap;
 }
 
 .timeline-controls button:hover {
@@ -32,8 +35,8 @@
 
 .timeline-controls span {
   color: #ccc;
-  font-size: 14px;
-  margin-left: 10px;
+  font-size: 12px;
+  margin-left: 4px;
 }
 
 .timeline-canvas {
@@ -85,5 +88,5 @@
 
 .timeline-controls label {
   color: #ccc;
-  font-size: 14px;
+  font-size: 12px;
 }

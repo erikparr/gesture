@@ -1,6 +1,6 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 
-const RecordButton = forwardRef(({ onRecordComplete, disabled }, ref) => {
+const RecordButton = forwardRef(({ onRecordComplete, disabled, style }, ref) => {
   const [recordingState, setRecordingState] = useState('idle'); // idle, countdown, recording, processing
   const [countdown, setCountdown] = useState(3);
   const [progress, setProgress] = useState(0);
@@ -91,25 +91,29 @@ const RecordButton = forwardRef(({ onRecordComplete, disabled }, ref) => {
         return {
           ...baseStyle,
           backgroundColor: '#FFA500',
-          color: 'white'
+          color: 'white',
+          ...style
         };
       case 'recording':
         return {
           ...baseStyle,
           backgroundColor: '#DC143C',
-          color: 'white'
+          color: 'white',
+          ...style
         };
       case 'processing':
         return {
           ...baseStyle,
           backgroundColor: '#6c757d',
-          color: 'white'
+          color: 'white',
+          ...style
         };
       default:
         return {
           ...baseStyle,
           backgroundColor: disabled ? '#ccc' : '#FF6347',
-          color: 'white'
+          color: 'white',
+          ...style
         };
     }
   };

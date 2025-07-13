@@ -1,8 +1,27 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import ViewportEditor from './components/ViewportEditor';
+import GenerateButton from './components/GenerateButton';
+import RecordButton from './components/RecordButton';
+import EditModeButton from './components/EditModeButton';
+import SaveMidiButton from './components/SaveMidiButton';
 import './Timeline.css';
 
-const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = false, onNotesChange, playbackTime, selectedScale, rootNote }) => {
+const Timeline = ({ 
+  midiData, 
+  liveNotes = [], 
+  isRecording = false, 
+  editMode = false, 
+  onNotesChange, 
+  playbackTime, 
+  selectedScale, 
+  rootNote,
+  onGenerate,
+  onRecordComplete,
+  onEditModeToggle,
+  loading,
+  recordButtonRef,
+  midiRecorder
+}) => {
 
   
   // Create editable version with IDs when in edit mode
@@ -48,7 +67,7 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
   }, [midiData, editMode]);
   
   const canvasRef = useRef(null);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(300); // Default zoom to show ~4 seconds across canvas
   const [scrollX, setScrollX] = useState(0);
   const [selectedNotes, setSelectedNotes] = useState(new Set());
   const [dragState, setDragState] = useState(null);
@@ -74,14 +93,66 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
     }
   }, [editMode]);
   
-  const NOTE_HEIGHT = 10;
   const PIXELS_PER_SECOND = 100;
   const RULER_HEIGHT = 40; // Height of time ruler
+  const MIN_NOTE_RANGE = 5; // Minimum number of notes to display
+  
+  // Calculate the note range from current notes
+  const noteRange = useMemo(() => {
+    let minNote = 127;
+    let maxNote = 0;
+    
+    // Check all notes in the display data
+    if (displayData && displayData.tracks) {
+      displayData.tracks.forEach(track => {
+        track.notes.forEach(note => {
+          if (note.midi < minNote) minNote = note.midi;
+          if (note.midi > maxNote) maxNote = note.midi;
+        });
+      });
+    }
+    
+    // Check live notes
+    liveNotes.forEach(note => {
+      if (note.midi < minNote) minNote = note.midi;
+      if (note.midi > maxNote) maxNote = note.midi;
+    });
+    
+    // If no notes, use default range
+    if (minNote > maxNote) {
+      minNote = 60; // Middle C
+      maxNote = 72; // C5
+    }
+    
+    // Ensure minimum range
+    const range = maxNote - minNote;
+    if (range < MIN_NOTE_RANGE - 1) {
+      const expansion = Math.ceil((MIN_NOTE_RANGE - 1 - range) / 2);
+      minNote = Math.max(0, minNote - expansion);
+      maxNote = Math.min(127, maxNote + expansion);
+    }
+    
+    // Add some padding
+    minNote = Math.max(0, minNote - 2);
+    maxNote = Math.min(127, maxNote + 2);
+    
+    return { minNote, maxNote };
+  }, [displayData, liveNotes]);
+  
+  // Calculate note height based on the visible range
+  const NOTE_HEIGHT = useMemo(() => {
+    const { minNote, maxNote } = noteRange;
+    const canvasHeight = 600;
+    const padding = 20;
+    const usableHeight = canvasHeight - RULER_HEIGHT - (2 * padding);
+    const totalNotes = maxNote - minNote + 1;
+    // Make notes fill about 80% of the space between grid lines
+    return (usableHeight / totalNotes) * 0.8;
+  }, [noteRange]);
   
   // Helper functions
   const midiNoteToY = (noteNumber) => {
-    const maxNote = 127;
-    const minNote = 0;
+    const { minNote, maxNote } = noteRange;
     const canvasHeight = 600;
     const padding = 20;
     const usableHeight = canvasHeight - RULER_HEIGHT - (2 * padding);
@@ -90,8 +161,7 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
   };
 
   const yToMidiNote = (y) => {
-    const maxNote = 127;
-    const minNote = 0;
+    const { minNote, maxNote } = noteRange;
     const canvasHeight = 600;
     const padding = 20;
     const usableHeight = canvasHeight - RULER_HEIGHT - (2 * padding);
@@ -398,14 +468,29 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
       ctx.stroke();
     }
     
-    // Horizontal grid lines (pitch reference)
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 0.5;
-    for (let i = rulerHeight + 30; i < height; i += 30) {
+    // Horizontal grid lines with note labels (pitch reference)
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const { minNote, maxNote } = noteRange;
+    const noteStep = Math.max(1, Math.ceil((maxNote - minNote) / 10)); // Show ~10 lines max
+    
+    ctx.font = '11px monospace';
+    
+    for (let midiNote = minNote; midiNote <= maxNote; midiNote += noteStep) {
+      const y = midiNoteToY(midiNote);
+      
+      // Grid line
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 0.5;
       ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(width, i);
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
       ctx.stroke();
+      
+      // Note label
+      const noteName = noteNames[midiNote % 12];
+      const octave = Math.floor(midiNote / 12) - 1;
+      ctx.fillStyle = '#666';
+      ctx.fillText(`${noteName}${octave}`, 5, y - 3);
     }
     
     // Ruler bottom border
@@ -542,7 +627,7 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
         ctx.fillText(timeText, playheadX - textWidth/2, 14);
       }
     }
-  }, [displayData, liveNotes, zoom, scrollX, isRecording, editMode, selectedNotes, dragState, playbackTime, dragSelection]);
+  }, [displayData, liveNotes, zoom, scrollX, isRecording, editMode, selectedNotes, dragState, playbackTime, dragSelection, noteRange, NOTE_HEIGHT]);
   
   const handleWheel = (e) => {
     if (e.ctrlKey || e.metaKey) {
@@ -558,7 +643,7 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
   const canvasWidth = 1200;
   const pixelsPerSecond = PIXELS_PER_SECOND * zoom / 100;
   const viewportStart = scrollX / pixelsPerSecond;
-  const viewportDuration = canvasWidth / pixelsPerSecond;
+  const viewportDuration = 4; // Fixed 4-second time window
 
   const handleTransformNotes = (transformedNotes) => {
     if (!displayData || !displayData.tracks) return;
@@ -615,9 +700,60 @@ const Timeline = ({ midiData, liveNotes = [], isRecording = false, editMode = fa
         />
       )}
       <div className="timeline-controls">
-        <button onClick={() => setZoom(Math.min(500, zoom + 10))}>Zoom In</button>
-        <button onClick={() => setZoom(Math.max(10, zoom - 10))}>Zoom Out</button>
-        <span>Zoom: {zoom}%</span>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <GenerateButton 
+            onGenerate={onGenerate} 
+            loading={loading} 
+            style={{ 
+              padding: '4px 12px', 
+              fontSize: '12px',
+              height: '28px' 
+            }} 
+          />
+          <RecordButton 
+            ref={recordButtonRef}
+            onRecordComplete={onRecordComplete} 
+            disabled={loading || !midiRecorder}
+            style={{ 
+              padding: '4px 12px', 
+              fontSize: '12px',
+              height: '28px' 
+            }}
+          />
+          <EditModeButton 
+            editMode={editMode}
+            onToggle={onEditModeToggle}
+            disabled={loading || isRecording || !midiData}
+            style={{ 
+              padding: '4px 12px', 
+              fontSize: '12px',
+              height: '28px' 
+            }}
+          />
+          <SaveMidiButton 
+            editableNotes={midiData}
+            disabled={loading || isRecording}
+            style={{ 
+              padding: '4px 12px', 
+              fontSize: '12px',
+              height: '28px' 
+            }}
+          />
+          <div style={{ width: '1px', height: '20px', backgroundColor: '#ccc', margin: '0 8px' }} />
+          <button 
+            onClick={() => setZoom(Math.min(500, zoom + 10))}
+            style={{ padding: '4px 12px', fontSize: '12px', height: '28px' }}
+          >
+            Zoom In
+          </button>
+          <button 
+            onClick={() => setZoom(Math.max(10, zoom - 10))}
+            style={{ padding: '4px 12px', fontSize: '12px', height: '28px' }}
+          >
+            Zoom Out
+          </button>
+          <span style={{ fontSize: '12px' }}>Zoom: {zoom}%</span>
+        </div>
         {editMode && selectedNotes.size > 0 && (
           <div style={{ 
             display: 'inline-flex', 
