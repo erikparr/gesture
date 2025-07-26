@@ -1,16 +1,83 @@
-import React from 'react';
+import React, { useState } from 'react';
+import SuperColliderExport from './SuperColliderExport';
 
 const MultiLayerToolbar = ({ 
   onLoadAllLayers,
   onPlayAll,
   onStopAll,
   onClearAll,
-  loading
+  loading,
+  layers
 }) => {
+  const [sendingOSC, setSendingOSC] = useState(false);
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
       onLoadAllLayers(file);
+    }
+  };
+
+  const handleSendToOSC = async () => {
+    if (sendingOSC) return;
+
+    setSendingOSC(true);
+    
+    try {
+      const exportData = {
+        layers: {},
+        duration_type: "absolute",
+        format_type: "standard"
+      };
+      
+      // Collect data from all layers with content
+      layers.forEach(layer => {
+        if (layer.parsedMidi && layer.parsedMidi.tracks && layer.parsedMidi.tracks.length > 0) {
+          // Check if layer has any notes
+          const hasNotes = layer.parsedMidi.tracks.some(track => 
+            track.notes && track.notes.length > 0
+          );
+          
+          if (hasNotes) {
+            exportData.layers[layer.id] = {
+              parsedMidi: layer.parsedMidi,
+              mute: layer.mute,
+              solo: layer.solo
+            };
+          }
+        }
+      });
+
+      if (Object.keys(exportData.layers).length === 0) {
+        alert('No layers with content to send');
+        return;
+      }
+
+      const response = await fetch('http://localhost:8000/send-to-osc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(exportData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'OSC send failed');
+      }
+
+      const result = await response.json();
+      
+      // Show success message
+      if (result.success) {
+        console.log(`Successfully sent ${result.layers.length} layers to SuperCollider via OSC`);
+        // Optionally show a temporary success indicator
+      }
+      
+    } catch (error) {
+      console.error('Error sending to OSC:', error);
+      alert('Failed to send to OSC: ' + error.message);
+    } finally {
+      setSendingOSC(false);
     }
   };
 
@@ -108,6 +175,31 @@ const MultiLayerToolbar = ({
           disabled={!onClearAll || loading}
         >
           Clear All
+        </button>
+
+        <SuperColliderExport 
+          layers={layers}
+          style={{ marginLeft: '8px' }}
+        />
+
+        <button
+          style={{
+            padding: '8px 16px',
+            fontSize: '14px',
+            backgroundColor: '#FF6B6B',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: sendingOSC ? 'not-allowed' : 'pointer',
+            opacity: sendingOSC || loading ? 0.6 : 1,
+            transition: 'all 0.2s',
+            marginLeft: '8px'
+          }}
+          onClick={handleSendToOSC}
+          disabled={sendingOSC || loading}
+          title="Send current layers to SuperCollider via OSC"
+        >
+          {sendingOSC ? 'Sending...' : 'Send to OSC'}
         </button>
       </div>
     </div>

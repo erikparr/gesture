@@ -293,6 +293,113 @@ function App() {
     }
   };
 
+  const handleTransform = async (layerId, transformType, params) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const layer = layers.find(l => l.id === layerId);
+      if (!layer || !layer.parsedMidi) {
+        throw new Error('No MIDI data to transform');
+      }
+
+      // Extract notes from parsed MIDI
+      const notes = layer.parsedMidi.tracks[0]?.notes || [];
+      const notesData = notes.map(note => ({
+        midi: note.midi,
+        time: note.time,
+        duration: note.duration,
+        velocity: note.velocity
+      }));
+
+      // Handle analyze separately (it returns analysis, not transformed notes)
+      if (transformType === 'analyze') {
+        const response = await fetch(`http://localhost:8000/transform/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notes: notesData,
+            scale_type: selectedScale,
+            root_note: rootNote
+          })
+        });
+        
+        const analysis = await response.json();
+        // Show analysis in console or modal
+        console.log('Melody Analysis:', analysis);
+        alert(`Melody Analysis:\n${JSON.stringify(analysis, null, 2)}`);
+        return;
+      }
+
+      // Call transformation API
+      const response = await fetch(`http://localhost:8000/transform/${transformType}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: notesData,
+          scale_type: selectedScale,
+          root_note: rootNote,
+          ...params
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to apply ${transformType} transformation`);
+      }
+
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+      const transformedMidi = new Midi(arrayBuffer);
+      
+      // Update layer with transformed MIDI
+      setLayers(prev => layerUtils.updateLayerMidi(prev, layerId, blob, transformedMidi));
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGesture = async (layerId, gestureType, params) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`http://localhost:8000/gesture/${gestureType}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gesture_type: gestureType,
+          scale_type: selectedScale,
+          root_note: rootNote,
+          note: params.note,
+          note_duration: params.noteDuration,
+          interval: params.interval,
+          gesture_duration: params.gestureDuration
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to generate ${gestureType} gesture`);
+      }
+
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+      const gestureMidi = new Midi(arrayBuffer);
+      
+      // Update layer with generated MIDI
+      setLayers(prev => layerUtils.updateLayerMidi(prev, layerId, blob, gestureMidi));
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     try {
       // For backward compatibility, save only the first layer's data
@@ -560,6 +667,8 @@ function App() {
         onMuteLayer={handleMuteLayer}
         onSoloLayer={handleSoloLayer}
         onPlaybackProgress={setPlaybackTime}
+        onTransform={handleTransform}
+        onGesture={handleGesture}
       />
       
     </div>

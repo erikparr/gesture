@@ -2,12 +2,17 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from music21 import stream, note, tempo, meter, duration, scale
 import json
 import os
 from pathlib import Path
 from scale_utils import get_scale_intervals
+import base64
+from datetime import datetime
+from transformations import MusicTransformer
+from pythonosc import udp_client
+import logging
 
 class MidiEvent(BaseModel):
     type: str  # 'noteOn' or 'noteOff'
@@ -56,6 +61,39 @@ class CounterpointRequest(BaseModel):
 
 class JsonMelodyData(BaseModel):
     melody_index: int = 0
+
+class SuperColliderExportRequest(BaseModel):
+    layers: Dict[str, Any]
+    duration_type: str = "absolute"  # "absolute" or "fractional"
+    format_type: str = "standard"
+
+class TransformNote(BaseModel):
+    midi: int
+    time: float
+    duration: float
+    velocity: float = 0.7
+
+class TransformRequest(BaseModel):
+    notes: List[TransformNote]
+    scale_type: str
+    root_note: str
+    # Transform-specific parameters
+    style: Optional[str] = None
+    interval: Optional[int] = None
+    semitones: Optional[int] = None
+    axis: Optional[str] = None
+    factor: Optional[float] = None
+    method: Optional[str] = None
+
+class GestureRequest(BaseModel):
+    scale_type: str
+    root_note: str
+    # Gesture-specific parameters
+    gesture_type: str
+    note: Optional[int] = None
+    note_duration: Optional[float] = None
+    interval: Optional[float] = None  # percentage 1-100
+    gesture_duration: Optional[float] = None
 
 app = FastAPI()
 
@@ -553,4 +591,545 @@ async def load_multi_layer_melody(file: UploadFile = File(...)):
         return {"error": "Invalid JSON file"}
     except Exception as e:
         print(f"Error loading multi-layer melody: {str(e)}")
+        return {"error": str(e)}
+
+def convert_to_decoupled_format(notes: List[Dict], duration_type: str = "absolute", 
+                                root_note: str = "C", scale_type: str = "major") -> Dict:
+    """Convert MIDI notes to decoupled format with fractional timing."""
+    if not notes:
+        return {
+            'metadata': {
+                'durationType': duration_type,
+                'totalDuration': 0,
+                'key': root_note,
+                'scale': scale_type
+            },
+            'notes': [],
+            'timing': [1.0]
+        }
+    
+    # Sort notes by time
+    sorted_notes = sorted(notes, key=lambda n: n['time'])
+    
+    # Calculate total duration
+    total_duration = max(n['time'] + n['duration'] for n in sorted_notes)
+    
+    # Extract note events
+    note_events = []
+    for note in sorted_notes:
+        event = {
+            'midi': note['midi'],
+            'vel': note.get('velocity', 0.7),
+            'dur': note['duration']  # Keep original duration
+        }
+        note_events.append(event)
+    
+    # Calculate normalized inter-onset intervals
+    timing = []
+    
+    # Initial delay
+    if sorted_notes[0]['time'] > 0:
+        timing.append(sorted_notes[0]['time'] / total_duration)
+    else:
+        timing.append(0.0)
+    
+    # Inter-note intervals
+    for i in range(1, len(sorted_notes)):
+        interval = (sorted_notes[i]['time'] - sorted_notes[i-1]['time']) / total_duration
+        timing.append(interval)
+    
+    # Final padding
+    last_note_start = sorted_notes[-1]['time']
+    final_padding = (total_duration - last_note_start) / total_duration
+    timing.append(final_padding)
+    
+    # Convert durations if fractional type
+    if duration_type == "fractional":
+        for i, note in enumerate(note_events):
+            # Calculate available time until next note
+            if i < len(note_events) - 1:
+                available_time = timing[i+1] * total_duration
+            else:
+                available_time = timing[-1] * total_duration
+            
+            # Convert to fraction
+            if available_time > 0:
+                note['dur'] = min(1.0, note['dur'] / available_time)
+            else:
+                note['dur'] = 1.0
+    
+    return {
+        'metadata': {
+            'durationType': duration_type,
+            'totalDuration': total_duration,
+            'key': root_note,
+            'scale': scale_type
+        },
+        'notes': note_events,
+        'timing': timing
+    }
+
+def generate_supercollider_json(layers_data: Dict, format_type: str = "standard") -> str:
+    """Generate JSON data for SuperCollider from layer data."""
+    export_data = {
+        "metadata": {
+            "exportDate": datetime.now().strftime('%Y-%m-%d'),
+            "exportTime": datetime.now().strftime('%H:%M:%S'),
+            "source": "MIDI Editor",
+            "format": "decoupled-timing"
+        },
+        "layers": {}
+    }
+    
+    # Add each layer's data
+    for layer_name, layer_data in layers_data.items():
+        if not layer_data['notes']:
+            continue
+            
+        export_data["layers"][layer_name] = {
+            "metadata": layer_data['metadata'],
+            "notes": layer_data['notes'],
+            "timing": layer_data['timing']
+        }
+    
+    return json.dumps(export_data, indent=2)
+
+@app.post("/export-supercollider")
+async def export_supercollider(request: SuperColliderExportRequest):
+    """Export layer data to SuperCollider format with decoupled timing."""
+    try:
+        layers_data = {}
+        
+        # Get current settings for key and scale
+        settings = {}
+        if SETTINGS_FILE.exists():
+            with open(SETTINGS_FILE, 'r') as f:
+                settings = json.load(f)
+        
+        root_note = settings.get('rootNote', 'C')
+        scale_type = settings.get('selectedScale', 'major')
+        
+        # Process each layer
+        for layer_id, layer_data in request.layers.items():
+            if not layer_data.get('parsedMidi'):
+                continue
+            
+            # Extract notes from parsed MIDI
+            notes = []
+            parsed_midi = layer_data['parsedMidi']
+            
+            if 'tracks' in parsed_midi:
+                for track in parsed_midi['tracks']:
+                    if 'notes' in track:
+                        for note in track['notes']:
+                            notes.append({
+                                'midi': note['midi'],
+                                'time': note['time'],
+                                'duration': note['duration'],
+                                'velocity': note.get('velocity', 0.7)
+                            })
+            
+            if notes:
+                # Convert to decoupled format
+                melody_data = convert_to_decoupled_format(
+                    notes,
+                    duration_type=request.duration_type,
+                    root_note=root_note,
+                    scale_type=scale_type
+                )
+                
+                layers_data[f"layer{layer_id}"] = melody_data
+        
+        if not layers_data:
+            return {"error": "No valid layer data to export"}
+        
+        # Generate JSON for SuperCollider
+        json_content = generate_supercollider_json(layers_data, request.format_type)
+        
+        # Return as downloadable JSON file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"sc_export_{timestamp}.json"
+        
+        return Response(
+            content=json_content,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+        
+    except Exception as e:
+        print(f"Error exporting to SuperCollider: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/send-to-osc")
+async def send_to_osc(request: SuperColliderExportRequest):
+    """Send layer data to SuperCollider via OSC in real-time."""
+    try:
+        # Create OSC client
+        osc_client = udp_client.SimpleUDPClient("127.0.0.1", 57120)
+        
+        # Get current settings for key and scale
+        settings = {}
+        if SETTINGS_FILE.exists():
+            with open(SETTINGS_FILE, 'r') as f:
+                settings = json.load(f)
+        
+        root_note = settings.get('rootNote', 'C')
+        scale_type = settings.get('selectedScale', 'major')
+        
+        # Layer name mapping (frontend to SuperCollider)
+        layer_mapping = {
+            "0": "layer1",
+            "1": "layer2",
+            "2": "layer3"
+        }
+        
+        sent_layers = []
+        
+        # Process each layer
+        for layer_id, layer_data in request.layers.items():
+            if not layer_data.get('parsedMidi'):
+                continue
+            
+            # Get the SuperCollider layer name
+            sc_layer_name = layer_mapping.get(str(layer_id), f"layer{int(layer_id)+1}")
+            
+            # Extract notes from parsed MIDI
+            notes = []
+            parsed_midi = layer_data['parsedMidi']
+            
+            if 'tracks' in parsed_midi:
+                for track in parsed_midi['tracks']:
+                    if 'notes' in track:
+                        for note in track['notes']:
+                            notes.append({
+                                'midi': note['midi'],
+                                'time': note['time'],
+                                'duration': note['duration'],
+                                'velocity': note.get('velocity', 0.7)
+                            })
+            
+            if notes:
+                # Sort notes by time
+                notes.sort(key=lambda n: n['time'])
+                
+                # Convert to SuperCollider format
+                sc_notes = []
+                for note in notes:
+                    sc_notes.append({
+                        'midi': note['midi'],
+                        'vel': note['velocity'] / 127.0 if note['velocity'] > 1 else note['velocity'],  # Convert to 0-1 range
+                        'dur': note['duration']
+                    })
+                
+                # Calculate timing array
+                timing = []
+                if notes:
+                    # Initial delay (time before first note)
+                    timing.append(notes[0]['time'] if notes[0]['time'] > 0 else 0.0)
+                    
+                    # Inter-onset intervals
+                    for i in range(1, len(notes)):
+                        interval = notes[i]['time'] - notes[i-1]['time']
+                        timing.append(interval if interval > 0 else 0.0)
+                    
+                    # Final wait (arbitrary, use 0.2 of total duration)
+                    total_duration = max(n['time'] + n['duration'] for n in notes)
+                    timing.append(total_duration * 0.2)
+                    
+                    # Normalize timing to sum to 1.0
+                    timing_sum = sum(timing)
+                    if timing_sum > 0:
+                        timing = [t / timing_sum for t in timing]
+                    else:
+                        # Fallback: evenly distribute
+                        timing = [1.0 / (len(notes) + 1)] * (len(notes) + 1)
+                
+                # Create OSC message
+                osc_data = {
+                    "notes": sc_notes,
+                    "timing": timing,
+                    "metadata": {
+                        "durationType": request.duration_type,
+                        "totalDuration": max(n['time'] + n['duration'] for n in notes) if notes else 0,
+                        "key": root_note,
+                        "scale": scale_type
+                    }
+                }
+                
+                # Send OSC message
+                osc_path = f"/liveMelody/update/{sc_layer_name}"
+                osc_client.send_message(osc_path, json.dumps(osc_data))
+                sent_layers.append(sc_layer_name)
+                
+                logging.info(f"Sent OSC message to {osc_path}")
+        
+        if not sent_layers:
+            return {"error": "No valid layer data to send"}
+        
+        return {
+            "success": True,
+            "message": f"Successfully sent {len(sent_layers)} layers to SuperCollider",
+            "layers": sent_layers
+        }
+        
+    except Exception as e:
+        logging.error(f"Error sending to OSC: {str(e)}")
+        return {"error": str(e)}
+
+# Transformation endpoints
+@app.post("/transform/analyze")
+def analyze_melody(request: TransformRequest):
+    """Analyze melody structure and patterns"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        analysis = transformer.analyze_melody(notes_data)
+        return analysis
+    except Exception as e:
+        print(f"Error analyzing melody: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/counter-melody")
+def transform_counter_melody(request: TransformRequest):
+    """Generate counter melody"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        transformed = transformer.counter_melody(
+            notes_data, 
+            style=request.style or "contrary"
+        )
+        
+        return create_midi_response(transformed, "counter-melody")
+    except Exception as e:
+        print(f"Error creating counter melody: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/harmonize")
+def transform_harmonize(request: TransformRequest):
+    """Create harmony line at interval"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        transformed = transformer.harmonize(
+            notes_data,
+            interval_degree=request.interval or 3
+        )
+        
+        return create_midi_response(transformed, "harmony")
+    except Exception as e:
+        print(f"Error harmonizing: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/transpose")
+def transform_transpose(request: TransformRequest):
+    """Transpose melody by semitones"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        transformed = transformer.transpose(
+            notes_data,
+            semitones=request.semitones or 0
+        )
+        
+        return create_midi_response(transformed, "transposed")
+    except Exception as e:
+        print(f"Error transposing: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/transpose-diatonic")
+def transform_transpose_diatonic(request: TransformRequest):
+    """Transpose melody by scale degrees (diatonic)"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        # Use semitones field to pass scale steps
+        scale_steps = request.semitones or 0
+        
+        transformed = transformer.transpose_diatonic(
+            notes_data,
+            scale_steps=scale_steps
+        )
+        
+        return create_midi_response(transformed, "diatonic-transposed")
+    except Exception as e:
+        print(f"Error diatonic transposing: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/invert")
+def transform_invert(request: TransformRequest):
+    """Invert melody around axis"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        transformed = transformer.invert(
+            notes_data,
+            axis=request.axis or "center"
+        )
+        
+        return create_midi_response(transformed, "inverted")
+    except Exception as e:
+        print(f"Error inverting: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/augment")
+def transform_augment(request: TransformRequest):
+    """Augment (stretch) timing"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        transformed = transformer.augment(
+            notes_data,
+            factor=request.factor or 2.0
+        )
+        
+        return create_midi_response(transformed, "augmented")
+    except Exception as e:
+        print(f"Error augmenting: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/diminish")
+def transform_diminish(request: TransformRequest):
+    """Diminish (compress) timing"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        transformed = transformer.diminish(
+            notes_data,
+            factor=request.factor or 0.5
+        )
+        
+        return create_midi_response(transformed, "diminished")
+    except Exception as e:
+        print(f"Error diminishing: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/ornament")
+def transform_ornament(request: TransformRequest):
+    """Add ornamentations"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        transformed = transformer.ornament(
+            notes_data,
+            style=request.style or "classical"
+        )
+        
+        return create_midi_response(transformed, "ornamented")
+    except Exception as e:
+        print(f"Error ornamenting: {str(e)}")
+        return {"error": str(e)}
+
+@app.post("/transform/develop")
+def transform_develop(request: TransformRequest):
+    """Apply melodic development"""
+    try:
+        transformer = MusicTransformer(request.scale_type, request.root_note)
+        notes_data = [note.dict() for note in request.notes]
+        
+        transformed = transformer.develop(
+            notes_data,
+            method=request.method or "sequence"
+        )
+        
+        return create_midi_response(transformed, "developed")
+    except Exception as e:
+        print(f"Error developing melody: {str(e)}")
+        return {"error": str(e)}
+
+def create_midi_response(notes: List[Dict], transformation_name: str) -> Response:
+    """Helper to create MIDI file from transformed notes"""
+    # Create a new stream
+    s = stream.Stream()
+    s.append(tempo.TempoIndication(number=120))
+    s.append(meter.TimeSignature('4/4'))
+    
+    # Sort notes by time
+    sorted_notes = sorted(notes, key=lambda n: n['time'])
+    
+    # Add notes to stream
+    for note_data in sorted_notes:
+        n = note.Note(note_data['midi'])
+        n.duration = duration.Duration(quarterLength=note_data['duration'] * 2)  # Assuming 120 BPM
+        n.offset = note_data['time'] * 2  # Convert to quarter note offsets
+        n.volume.velocity = int(note_data.get('velocity', 0.7) * 127)  # Convert to MIDI velocity
+        s.insert(n.offset, n)
+    
+    # Convert to MIDI bytes
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.mid', delete=False) as tmp_file:
+        s.write('midi', fp=tmp_file.name)
+        tmp_file.flush()
+        with open(tmp_file.name, 'rb') as f:
+            midi_bytes = f.read()
+        os.unlink(tmp_file.name)
+    
+    return Response(
+        content=midi_bytes,
+        media_type="audio/midi",
+        headers={"Content-Disposition": f"attachment; filename={transformation_name}.mid"}
+    )
+
+@app.post("/gesture/simple-rhythm")
+def generate_simple_rhythm(request: GestureRequest):
+    """Generate a simple rhythmic pattern"""
+    try:
+        # Extract parameters with defaults
+        midi_note = request.note or 60  # Default to C4
+        note_duration = request.note_duration or 0.5  # Default 0.5 seconds
+        interval_percent = request.interval or 50  # Default 50%
+        gesture_duration = request.gesture_duration or 4  # Default 4 seconds
+        
+        # Calculate rest interval in seconds (percentage of note duration)
+        rest_interval = note_duration * (interval_percent / 100.0)
+        
+        # Calculate total time per note cycle (note + rest)
+        cycle_duration = note_duration + rest_interval
+        
+        # Create notes array
+        notes = []
+        current_time = 0
+        
+        while current_time < gesture_duration:
+            # Check if note would extend beyond gesture duration
+            if current_time + note_duration > gesture_duration:
+                # Trim the last note duration if needed
+                actual_duration = gesture_duration - current_time
+                if actual_duration > 0:
+                    notes.append({
+                        'midi': midi_note,
+                        'time': current_time,
+                        'duration': actual_duration,
+                        'velocity': 0.7
+                    })
+                break
+            
+            # Add the note
+            notes.append({
+                'midi': midi_note,
+                'time': current_time,
+                'duration': note_duration,
+                'velocity': 0.7
+            })
+            
+            # Move to next note start time (after note + rest)
+            current_time += cycle_duration
+            
+            # Break if the next note would start beyond gesture duration
+            if current_time >= gesture_duration:
+                break
+        
+        return create_midi_response(notes, "simple-rhythm")
+    except Exception as e:
+        print(f"Error generating simple rhythm: {str(e)}")
         return {"error": str(e)}

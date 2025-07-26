@@ -5,6 +5,8 @@ import RecordButton from './components/RecordButton';
 import EditModeButton from './components/EditModeButton';
 import SaveMidiButton from './components/SaveMidiButton';
 import MidiPlayer from './components/MidiPlayer';
+import TransformationPanel from './components/TransformationPanel';
+import GesturePanel from './components/GesturePanel';
 import './Timeline.css';
 
 const Timeline = ({ 
@@ -25,7 +27,9 @@ const Timeline = ({
   onPlaybackProgress,
   height = 600, // Configurable height, default 600px
   layerId = 0,
-  layerName = ''
+  layerName = '',
+  onTransform,
+  onGesture
 }) => {
 
   
@@ -407,6 +411,42 @@ const Timeline = ({
     }
   };
   
+  // Handle keyboard events
+  const handleKeyDown = (e) => {
+    if (!editMode || selectedNotes.size === 0) return;
+    
+    // Delete key or Backspace
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      
+      if (displayData && displayData.tracks) {
+        const newDisplayData = { ...displayData };
+        newDisplayData.tracks = newDisplayData.tracks.map(track => ({
+          ...track,
+          notes: track.notes.filter(note => !selectedNotes.has(note.id))
+        }));
+        
+        // Clear selection after deletion
+        setSelectedNotes(new Set());
+        setOriginalDurations(new Map());
+        
+        if (onNotesChange) {
+          onNotesChange(newDisplayData);
+        }
+      }
+    }
+  };
+
+  // Add keyboard event listener
+  useEffect(() => {
+    if (editMode) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [editMode, selectedNotes, displayData, onNotesChange]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -752,6 +792,28 @@ const Timeline = ({
               }}
             />
           </div>
+          {onTransform && (
+            <TransformationPanel
+              layerId={layerId}
+              notes={midiData?.tracks?.[0]?.notes || []}
+              scale={selectedScale}
+              rootNote={rootNote}
+              onTransform={onTransform}
+              disabled={loading || isRecording || !midiData}
+              loading={loading}
+            />
+          )}
+          {onGesture && (
+            <GesturePanel
+              layerId={layerId}
+              notes={midiData?.tracks?.[0]?.notes || []}
+              scale={selectedScale}
+              rootNote={rootNote}
+              onGesture={onGesture}
+              disabled={loading || isRecording}
+              loading={loading}
+            />
+          )}
           <div style={{ width: '1px', height: '20px', backgroundColor: '#ccc', margin: '0 8px' }} />
           <button 
             onClick={() => setZoom(Math.min(500, zoom + 10))}

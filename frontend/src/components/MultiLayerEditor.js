@@ -22,7 +22,9 @@ const MultiLayerEditor = ({
   onStopAll,
   onMuteLayer,
   onSoloLayer,
-  onPlaybackProgress
+  onPlaybackProgress,
+  onTransform,
+  onGesture
 }) => {
   return (
     <div style={{
@@ -40,6 +42,7 @@ const MultiLayerEditor = ({
         onStopAll={onStopAll}
         onClearAll={onClearAllLayers}
         loading={loading}
+        layers={layers}
       />
 
       {/* Individual layers */}
@@ -135,6 +138,8 @@ const MultiLayerEditor = ({
             height={200} // Smaller height for multi-layer view
             layerId={layer.id}
             layerName={layer.name}
+            onTransform={onTransform ? (transformType, params) => onTransform(layer.id, transformType, params) : undefined}
+            onGesture={onGesture ? (gestureType, params) => onGesture(layer.id, gestureType, params) : undefined}
           />
         </div>
       ))}

@@ -24,8 +24,11 @@
 - `Toolbar.js` - Scale/key selection and settings management toolbar
 - `SettingsManager.js` - Utility for saving/loading app settings to file
 - `MultiLayerEditor.js` - Container component managing 3 independent timeline layers
-- `MultiLayerToolbar.js` - Toolbar for multi-layer actions (Load All, Play All, Clear All)
+- `MultiLayerToolbar.js` - Toolbar for multi-layer actions (Load All, Play All, Clear All, Export SC)
 - `MultiLayerPlayer.js` - Handles synchronized playback of multiple layers with mute/solo
+- `SuperColliderExport.js` - Export layers to SuperCollider with duration type selection
+- `TransformationPanel.js` - Dropdown panel for applying musical transformations to layers
+- `GesturePanel.js` - Dropdown panel for generating algorithmic musical gestures
 
 ### Frontend Setup Commands
 ```bash
@@ -41,6 +44,12 @@ npm start  # Runs on http://localhost:3000
 - Uvicorn 0.24.0
 - music21 9.1.0
 - python-multipart 0.0.6
+- python-osc 1.8.3
+
+### Key Modules
+- `main.py` - FastAPI application with all endpoints
+- `scale_utils.py` - Scale definitions and music theory utilities
+- `transformations.py` - Musical transformation algorithms (MusicTransformer class)
 
 ### API Endpoints
 - `GET /` - Health check, returns `{"message": "MIDI Editor Backend"}`
@@ -53,6 +62,23 @@ npm start  # Runs on http://localhost:3000
 - `GET /settings/download` - Download settings file
 - `POST /load-melody` - Load melody from JSON file with pattern arrays
 - `POST /load-multi-layer-melody` - Load melodies for all 3 layers from JSON file
+- `POST /export-supercollider` - Export layers to SuperCollider format with decoupled timing
+- `POST /send-to-osc` - Send layer data to SuperCollider via OSC in real-time
+
+#### Transformation Endpoints
+- `POST /transform/analyze` - Analyze melody structure and patterns
+- `POST /transform/counter-melody` - Generate counter melody with various motion types
+- `POST /transform/harmonize` - Create harmony line at specified interval
+- `POST /transform/transpose` - Transpose by semitones (chromatic)
+- `POST /transform/transpose-diatonic` - Transpose by scale degrees (diatonic)
+- `POST /transform/invert` - Melodic inversion around axis
+- `POST /transform/augment` - Rhythmic augmentation (stretch timing)
+- `POST /transform/diminish` - Rhythmic diminution (compress timing)
+- `POST /transform/ornament` - Add musical ornamentations
+- `POST /transform/develop` - Apply melodic development techniques
+
+#### Gesture Endpoints
+- `POST /gesture/simple-rhythm` - Generate repeating rhythmic pattern with rest intervals between notes
 
 ### Backend Setup Commands
 ```bash
@@ -83,7 +109,7 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
       # Read and return bytes
   ```
 - **Scale Generation**: Supports 15+ scales with custom root note and octave
-- **Supported Scales**: Major, Minor, Harmonic Minor, Melodic Minor, Pentatonic, Minor Pentatonic, Blues, Chromatic, Whole Tone, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian
+- **Supported Scales**: Major, Minor, Harmonic Minor, Melodic Minor, Pentatonic, Minor Pentatonic, Blues, Chromatic, Whole Tone, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian, Phrygian Dominant
 - **Implementation**: Uses semitone intervals for consistent ascending patterns
 - MIDI files returned as binary data with `audio/midi` content type
 
@@ -167,6 +193,7 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 - **Toggle Edit Mode**: Enable/disable note editing with visual indicator
 - **Note Selection**: Click notes to select (turn blue), Ctrl/Cmd+click for multi-select
 - **Drag and Drop**: Move notes horizontally (time) and vertically (pitch)
+- **Delete Notes**: Press Delete or Backspace key to delete selected notes
 - **Real-time Preview**: Orange preview during dragging
 - **Position Constraints**: Notes cannot go below time 0 or outside MIDI range
 - **Visual States**: Green (normal), Blue (selected), Orange (dragging)
@@ -178,6 +205,31 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 - Pan: Scroll horizontally with mouse wheel
 - Time scale: 100 pixels per second (adjustable with zoom)
 - Click empty space to deselect all notes
+
+### Musical Transformations
+- **Transform Button**: Per-layer transformation controls
+- **Transformation Types**:
+  - **Analyze**: View intervals, contour, scale degrees, and phrase structure
+  - **Counter Melody**: Generate complementary melody (contrary/parallel/oblique motion)
+  - **Harmonize**: Add harmony line at 3rd, 5th, 6th, or octave
+  - **Transpose**: Shift by semitones (chromatic) or scale degrees (diatonic)
+  - **Invert**: Mirror melody around center, first, or last note
+  - **Augment/Diminish**: Stretch or compress timing by factor
+  - **Ornament**: Add decorations (classical, jazz, baroque, minimal styles)
+  - **Develop**: Apply techniques (sequence, fragment, extend, retrograde)
+- **Scale-Aware**: All transformations respect the selected scale and key
+- **Real-time Processing**: Instant transformation results
+
+### Musical Gestures
+- **Gesture Button**: Per-layer algorithmic pattern generation
+- **Gesture Types**:
+  - **Simple Rhythm**: Create repeating rhythmic patterns with parameters:
+    - Note: MIDI pitch to repeat (0-127)
+    - Note Duration: How long each note plays (0.1-2.0 seconds)
+    - Rest Interval: Rest period between notes as percentage of note duration (0-200%)
+    - Gesture Duration: Total time the pattern runs (1-10 seconds)
+- **Algorithm-based**: Generates patterns programmatically based on parameters
+- **Layer Integration**: Generated patterns replace current layer content
 
 ## Scale Selection & Settings Features
 
@@ -227,13 +279,65 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 }
 ```
 
-## File Export Feature
+## File Export Features
 
 ### Save MIDI Functionality
 - **Save Button**: Export edited compositions as standard MIDI files
 - **Automatic Download**: Files saved as `edited-midi-[timestamp].mid`
 - **Preserves Edits**: All timing, pitch, velocity, and duration changes included
 - **Standard Format**: Compatible with all MIDI software and hardware
+
+### SuperCollider Export
+- **Export to SC**: Export all layers to JSON format for SuperCollider
+- **Decoupled Timing**: Notes and timing are separated for maximum flexibility
+- **Duration Types**:
+  - **Absolute**: Note durations in seconds (default)
+  - **Fractional**: Note durations as fractions of inter-onset intervals (0-1)
+- **JSON Structure**:
+  ```json
+  {
+    "metadata": {
+      "exportDate": "2024-01-20",
+      "source": "MIDI Editor",
+      "format": "decoupled-timing"
+    },
+    "layers": {
+      "layer0": {
+        "metadata": {
+          "durationType": "absolute",
+          "totalDuration": 4.0,
+          "key": "C",
+          "scale": "major"
+        },
+        "notes": [
+          {"midi": 60, "vel": 0.8, "dur": 0.6}
+        ],
+        "timing": [0.1, 0.3, 0.3, 0.3]
+      }
+    }
+  }
+  ```
+- **Benefits**:
+  - Independent manipulation of rhythm and melody
+  - Easy tempo/timing transformations
+  - Preserves all note relationships
+  - Clean JSON format for easy parsing in SuperCollider
+
+### OSC Real-time Communication
+- **Send to OSC**: Send current layer data to SuperCollider via OSC
+- **Real-time Updates**: Updates can be sent while SuperCollider is playing
+- **OSC Details**:
+  - Host: 127.0.0.1 (localhost)
+  - Port: 57120 (SuperCollider default)
+  - Message format: `/liveMelody/update/<layerName>`
+- **Layer Mapping**:
+  - Frontend layer 0 → SuperCollider layer1
+  - Frontend layer 1 → SuperCollider layer2
+  - Frontend layer 2 → SuperCollider layer3
+- **Data Conversion**:
+  - Velocity converted from 0-127 to 0.0-1.0 range
+  - Timing array normalized to sum to 1.0
+  - Includes metadata (key, scale, duration)
 
 ## Development Workflow
 
@@ -245,10 +349,12 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 6. **Generate MIDI**: Click "Generate MIDI" on any layer to create scale pattern
 7. **Record MIDI**: Connect MIDI device and click "Record MIDI" on any layer (max 10 seconds)
 8. **Edit Notes**: Enable "Edit Mode" per layer to select and drag notes
-9. **Mute/Solo**: Control which layers play during "Play All"
-10. **Save Settings**: Click "Save Settings" to persist all layers and configuration
-11. **Save File**: Click "Save MIDI" on any layer to download that layer's composition
-12. **Playback**: Use "Play MIDI" for single layer or "Play All" for multi-layer playback
+9. **Transform Melodies**: Use "Transform" button to apply musical transformations
+10. **Generate Gestures**: Use "Gesture" button to create algorithmic patterns (e.g., simple rhythms)
+11. **Mute/Solo**: Control which layers play during "Play All"
+12. **Save Settings**: Click "Save Settings" to persist all layers and configuration
+13. **Save File**: Click "Save MIDI" on any layer to download that layer's composition
+14. **Playback**: Use "Play MIDI" for single layer or "Play All" for multi-layer playback
 
 ## Error Handling
 
