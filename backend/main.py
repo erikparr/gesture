@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from music21 import stream, note, tempo, meter, duration, scale
+from music21 import stream, note, tempo, meter, duration, scale, converter
 import json
 import os
 from pathlib import Path
@@ -1133,3 +1133,136 @@ def generate_simple_rhythm(request: GestureRequest):
     except Exception as e:
         print(f"Error generating simple rhythm: {str(e)}")
         return {"error": str(e)}
+
+@app.post("/import-midi")
+async def import_midi_file(file: UploadFile = File(...)):
+    """Import MIDI file and extract up to 3 tracks"""
+    try:
+        if not file.filename.endswith(('.mid', '.midi')):
+            return {"error": "Invalid file type. Please upload a MIDI file."}
+        
+        # Import mido
+        import mido
+        import tempfile
+        
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(suffix='.mid', delete=False) as tmp_file:
+            content = await file.read()
+            tmp_file.write(content)
+            tmp_file.flush()
+            tmp_path = tmp_file.name
+        
+        try:
+            # Parse MIDI file with mido
+            mid = mido.MidiFile(tmp_path)
+            
+            # Get tempo from first track (if available)
+            tempo_value = 500000  # Default tempo (120 BPM in microseconds per beat)
+            for msg in mid.tracks[0]:
+                if msg.type == 'set_tempo':
+                    tempo_value = msg.tempo
+                    break
+            
+            # Convert tempo to BPM
+            bpm = 60000000 / tempo_value
+            
+            # Process up to 3 tracks that have notes
+            tracks_data = []
+            track_count = 0
+            
+            for track_idx, track in enumerate(mid.tracks):
+                if track_count >= 3:
+                    break
+                
+                # Check if track has any note events
+                has_notes = any(msg.type in ['note_on', 'note_off'] for msg in track)
+                if not has_notes:
+                    continue
+                
+                # Extract notes from track
+                notes = []
+                active_notes = {}  # pitch -> (start_time, velocity)
+                current_time = 0  # in ticks
+                
+                for msg in track:
+                    current_time += msg.time
+                    
+                    if msg.type == 'note_on' and msg.velocity > 0:
+                        # Start of a note
+                        active_notes[msg.note] = (current_time, msg.velocity)
+                    elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+                        # End of a note
+                        if msg.note in active_notes:
+                            start_time, velocity = active_notes[msg.note]
+                            duration_ticks = current_time - start_time
+                            
+                            # Convert ticks to seconds
+                            time_seconds = mido.tick2second(start_time, mid.ticks_per_beat, tempo_value)
+                            duration_seconds = mido.tick2second(duration_ticks, mid.ticks_per_beat, tempo_value)
+                            
+                            notes.append({
+                                'midi': msg.note,
+                                'time': time_seconds,
+                                'duration': duration_seconds,
+                                'velocity': velocity / 127.0
+                            })
+                            del active_notes[msg.note]
+                
+                # Sort notes by time
+                notes.sort(key=lambda n: n['time'])
+                
+                # Create MIDI file for this track using music21
+                track_stream = stream.Stream()
+                track_stream.append(tempo.TempoIndication(number=120))
+                track_stream.append(meter.TimeSignature('4/4'))
+                
+                for note_data in notes:
+                    n = note.Note(note_data['midi'])
+                    # Convert seconds to quarter notes at 120 BPM
+                    n.duration = duration.Duration(quarterLength=note_data['duration'] * 2)
+                    n.offset = note_data['time'] * 2
+                    n.volume.velocity = int(note_data['velocity'] * 127)
+                    track_stream.insert(n.offset, n)
+                
+                # Convert to MIDI bytes
+                with tempfile.NamedTemporaryFile(suffix='.mid', delete=False) as tmp_file2:
+                    track_stream.write('midi', fp=tmp_file2.name)
+                    tmp_file2.flush()
+                    with open(tmp_file2.name, 'rb') as f:
+                        midi_bytes = f.read()
+                    os.unlink(tmp_file2.name)
+                
+                # Encode as base64 for transport
+                midi_base64 = base64.b64encode(midi_bytes).decode('utf-8')
+                tracks_data.append({
+                    'trackIndex': track_count,
+                    'midiData': midi_base64,
+                    'noteCount': len(notes),
+                    'originalTrackIndex': track_idx,
+                    'trackName': track.name if hasattr(track, 'name') else f'Track {track_idx}'
+                })
+                track_count += 1
+            
+            # Clean up temp file
+            os.unlink(tmp_path)
+            
+            return {
+                'success': True,
+                'tracks': tracks_data,
+                'totalTracksFound': len(mid.tracks),
+                'tracksImported': len(tracks_data),
+                'detectedTempo': round(bpm),
+                'midiType': mid.type
+            }
+            
+        except Exception as e:
+            # Clean up temp file on error
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise e
+        
+    except Exception as e:
+        print(f"Error importing MIDI file: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"error": f"Failed to import MIDI file: {str(e)}"}

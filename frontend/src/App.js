@@ -559,6 +559,78 @@ function App() {
     }
   };
 
+  const handleImportMidi = async (file) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('http://localhost:8000/import-midi', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to import MIDI file');
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (!data.success || !data.tracks) {
+        throw new Error('Invalid response from server');
+      }
+      
+      // Update layers with imported MIDI data
+      const newLayers = [...layers];
+      
+      for (const track of data.tracks) {
+        const layerIndex = track.trackIndex;
+        if (layerIndex < newLayers.length) {
+          try {
+            // Decode base64 MIDI data
+            const binaryString = atob(track.midiData);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: 'audio/midi' });
+            const arrayBuffer = await blob.arrayBuffer();
+            const midi = new Midi(arrayBuffer);
+            
+            // Update layer
+            newLayers[layerIndex] = {
+              ...newLayers[layerIndex],
+              midiData: blob,
+              parsedMidi: midi
+            };
+          } catch (parseError) {
+            console.error(`Error parsing MIDI for track ${layerIndex}:`, parseError);
+          }
+        }
+      }
+      
+      setLayers(newLayers);
+      setError(null);
+      console.log(`Successfully imported ${data.tracksImported} tracks from MIDI file`);
+      
+      // Show info message if some tracks were skipped
+      if (data.totalTracksFound > 3) {
+        console.log(`Note: Only first 3 tracks were imported (file contains ${data.totalTracksFound} tracks)`);
+      }
+      
+    } catch (err) {
+      setError('Failed to import MIDI file: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleClearAllLayers = () => {
     const clearedLayers = layers.map(layer => ({
       ...layer,
@@ -661,6 +733,7 @@ function App() {
         onRecordComplete={handleRecordComplete}
         onLoadMelody={handleLoadMelody}
         onLoadAllLayers={handleLoadAllLayers}
+        onImportMidi={handleImportMidi}
         onClearAllLayers={handleClearAllLayers}
         onPlayAll={handlePlayAll}
         onStopAll={handleStopAll}

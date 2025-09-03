@@ -64,6 +64,7 @@ npm start  # Runs on http://localhost:3000
 - `POST /load-multi-layer-melody` - Load melodies for all 3 layers from JSON file
 - `POST /export-supercollider` - Export layers to SuperCollider format with decoupled timing
 - `POST /send-to-osc` - Send layer data to SuperCollider via OSC in real-time
+- `POST /import-midi` - Import multi-track MIDI file, extracting up to 3 tracks (first 10 seconds)
 
 #### Transformation Endpoints
 - `POST /transform/analyze` - Analyze melody structure and patterns
@@ -154,6 +155,7 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 
 ### Multi-Layer Features
 - **Load All Layers**: Upload JSON file to populate all 3 layers simultaneously
+- **Import MIDI**: Import multi-track MIDI files, distributing up to 3 tracks to layers
 - **Play All**: Synchronized playback of all non-muted layers
 - **Clear All**: Reset all layers to empty state
 - **Individual Layer Controls**: Generate, Record, Edit, Save per layer
@@ -279,6 +281,19 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 }
 ```
 
+## MIDI Import Feature
+
+### Import MIDI Files
+- **Import Button**: Load external MIDI files from the Multi-Layer Actions toolbar
+- **Multi-Track Support**: Automatically distributes tracks to layers:
+  - Track 1 → Layer 1
+  - Track 2 → Layer 2
+  - Track 3 → Layer 3
+  - Additional tracks are ignored
+- **Time Limit**: Only imports first 10 seconds of MIDI data
+- **Format Support**: Accepts .mid and .midi file extensions
+- **Automatic Distribution**: Each track is processed independently and assigned to its respective layer
+
 ## File Export Features
 
 ### Save MIDI Functionality
@@ -344,7 +359,7 @@ uvicorn main:app --reload  # Runs on http://localhost:8000
 1. Start backend: `cd backend && source venv/bin/activate && uvicorn main:app --reload`
 2. Start frontend: `cd frontend && npm start`
 3. **Multi-Layer Mode**: Work with 3 independent layers simultaneously
-4. **Load Melodies**: Use "Load All Layers" to import JSON melody file
+4. **Load Content**: Use "Load All Layers" for JSON melody files or "Import MIDI" for multi-track MIDI files
 5. **Select Scale**: Choose scale type, root note, and octave from toolbar
 6. **Generate MIDI**: Click "Generate MIDI" on any layer to create scale pattern
 7. **Record MIDI**: Connect MIDI device and click "Record MIDI" on any layer (max 10 seconds)

@@ -3,6 +3,7 @@ import SuperColliderExport from './SuperColliderExport';
 
 const MultiLayerToolbar = ({ 
   onLoadAllLayers,
+  onImportMidi,
   onPlayAll,
   onStopAll,
   onClearAll,
@@ -14,6 +15,13 @@ const MultiLayerToolbar = ({
     const file = event.target.files[0];
     if (file) {
       onLoadAllLayers(file);
+    }
+  };
+
+  const handleMidiImport = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      onImportMidi(file);
     }
   };
 
@@ -118,6 +126,27 @@ const MultiLayerToolbar = ({
             type="file"
             accept=".json"
             onChange={handleFileUpload}
+            style={{ display: 'none' }}
+            disabled={loading}
+          />
+        </label>
+
+        <label style={{
+          padding: '8px 16px',
+          backgroundColor: '#2196F3',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          fontSize: '14px',
+          opacity: loading ? 0.6 : 1,
+          transition: 'all 0.2s'
+        }}>
+          Import MIDI
+          <input
+            type="file"
+            accept=".mid,.midi"
+            onChange={handleMidiImport}
             style={{ display: 'none' }}
             disabled={loading}
           />

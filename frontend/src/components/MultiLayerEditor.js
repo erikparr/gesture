@@ -17,6 +17,7 @@ const MultiLayerEditor = ({
   onRecordComplete,
   onLoadMelody,
   onLoadAllLayers,
+  onImportMidi,
   onClearAllLayers,
   onPlayAll,
   onStopAll,
@@ -38,6 +39,7 @@ const MultiLayerEditor = ({
       {/* Multi-layer toolbar */}
       <MultiLayerToolbar
         onLoadAllLayers={onLoadAllLayers}
+        onImportMidi={onImportMidi}
         onPlayAll={onPlayAll}
         onStopAll={onStopAll}
         onClearAll={onClearAllLayers}
