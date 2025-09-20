@@ -400,6 +400,68 @@ function App() {
     }
   };
 
+  const handleMultiLayerGesture = async (layerConfigs) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:8000/gesture/multi-layer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          layers: layerConfigs,
+          scale_type: selectedScale,
+          root_note: rootNote
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate multi-layer gesture');
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to generate multi-layer gesture');
+      }
+
+      // Update all layers with their respective MIDI data
+      setLayers(prev => {
+        let updatedLayers = [...prev];
+        
+        for (const layerIdStr in result.layers) {
+          const layerId = parseInt(layerIdStr);
+          const base64MidiData = result.layers[layerIdStr];
+          
+          // Convert base64 to blob
+          const binaryString = atob(base64MidiData);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: 'audio/midi' });
+          
+          // Parse MIDI
+          const arrayBuffer = bytes.buffer;
+          const gestureMidi = new Midi(arrayBuffer);
+          
+          // Update the layer
+          updatedLayers = layerUtils.updateLayerMidi(updatedLayers, layerId, blob, gestureMidi);
+        }
+        
+        return updatedLayers;
+      });
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     try {
       // For backward compatibility, save only the first layer's data
@@ -742,6 +804,7 @@ function App() {
         onPlaybackProgress={setPlaybackTime}
         onTransform={handleTransform}
         onGesture={handleGesture}
+        onMultiLayerGesture={handleMultiLayerGesture}
       />
       
     </div>

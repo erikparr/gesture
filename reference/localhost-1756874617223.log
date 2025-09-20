@@ -1,0 +1,27 @@
+Timeline.js:38 useMemo displayData - inputs: {midiData: 'has data', hasTracks: 'yes', editMode: false}
+Timeline.js:74 useMemo returning original midiData
+Timeline.js:38 useMemo displayData - inputs: {midiData: 'has data', hasTracks: 'yes', editMode: false}
+Timeline.js:74 useMemo returning original midiData
+Timeline.js:38 useMemo displayData - inputs: {midiData: 'has data', hasTracks: 'yes', editMode: false}
+Timeline.js:74 useMemo returning original midiData
+Timeline.js:454 Timeline rendering, editMode: false displayData: Midi {header: Header, tracks: Array(1)}
+Timeline.js:548 Rendering notes, displayData.tracks: 1
+Timeline.js:550 Track 0 has 1 notes: [Note]
+Timeline.js:557 Coordinate calculation for note 0: {note.time: 0.505, PIXELS_PER_SECOND: 100, zoom: 300, scrollX: 0, calculation: '(0.505 * 100 * 300 / 100) - 0', …}
+Timeline.js:565 Note 0: {time: 0.505, midi: 60, duration: 0.9900000000000001, id: undefined, x: 151.5, …}
+Timeline.js:601 Actually drew note at x:151.5, y:120, noteWidth:297.00000000000006, height:10.666666666666668
+Timeline.js:602 Fill color: #4caf50, Stroke color: #2e7d32
+Timeline.js:454 Timeline rendering, editMode: false displayData: Midi {header: Header, tracks: Array(1)}
+Timeline.js:548 Rendering notes, displayData.tracks: 1
+Timeline.js:550 Track 0 has 5 notes: (5) [Note, Note, Note, Note, Note]
+Timeline.js:557 Coordinate calculation for note 0: {note.time: 0.1175, PIXELS_PER_SECOND: 100, zoom: 300, scrollX: 0, calculation: '(0.1175 * 100 * 300 / 100) - 0', …}
+Timeline.js:565 Note 0: {time: 0.1175, midi: 64, duration: 0.16499999999999998, id: undefined, x: 35.25, …}
+Timeline.js:601 Actually drew note at x:35.25, y:120, noteWidth:49.49999999999999, height:10.666666666666668
+Timeline.js:602 Fill color: #4caf50, Stroke color: #2e7d32
+Timeline.js:454 Timeline rendering, editMode: false displayData: Midi {header: Header, tracks: Array(1)}
+Timeline.js:548 Rendering notes, displayData.tracks: 1
+Timeline.js:550 Track 0 has 10 notes: (10) [Note, Note, Note, Note, Note, Note, Note, Note, Note, Note]
+Timeline.js:557 Coordinate calculation for note 0: {note.time: 0.055, PIXELS_PER_SECOND: 100, zoom: 300, scrollX: 0, calculation: '(0.055 * 100 * 300 / 100) - 0', …}
+Timeline.js:565 Note 0: {time: 0.055, midi: 67, duration: 0.09, id: undefined, x: 16.5, …}
+Timeline.js:601 Actually drew note at x:16.5, y:120, noteWidth:27, height:10.666666666666668
+Timeline.js:602 Fill color: #4caf50, Stroke color: #2e7d32

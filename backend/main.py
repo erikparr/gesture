@@ -95,6 +95,18 @@ class GestureRequest(BaseModel):
     interval: Optional[float] = None  # percentage 1-100
     gesture_duration: Optional[float] = None
 
+class MultiLayerGestureLayerConfig(BaseModel):
+    layerId: int
+    midiNote: int
+    durationPercent: float  # 1-100%
+    totalDuration: float  # 1-10 seconds
+    numNotes: int  # 1-100 notes
+
+class MultiLayerGestureRequest(BaseModel):
+    layers: List[MultiLayerGestureLayerConfig]
+    scale_type: str
+    root_note: str
+
 app = FastAPI()
 
 # Settings file path
@@ -1132,6 +1144,130 @@ def generate_simple_rhythm(request: GestureRequest):
         return create_midi_response(notes, "simple-rhythm")
     except Exception as e:
         print(f"Error generating simple rhythm: {str(e)}")
+        return {"error": str(e)}
+
+def calculate_symmetric_positions(num_notes: int, total_duration: float) -> List[float]:
+    """Calculate symmetric note positions using equal time segments."""
+    if num_notes <= 0 or total_duration <= 0:
+        return []
+    
+    # Divide time into equal segments, place each note at center of its segment
+    segment_duration = total_duration / num_notes
+    positions = []
+    for i in range(num_notes):
+        # Center of segment i: (i + 0.5) * segment_duration
+        center_position = (i + 0.5) * segment_duration
+        positions.append(center_position)
+    
+    return positions
+
+def generate_layer_midi(midi_note: int, center_positions: List[float], duration_percent: float, total_duration: float, num_notes: int) -> bytes:
+    """Generate MIDI bytes for a single layer using symmetric positions with pure mathematical timing."""
+    import mido
+    import tempfile
+    import os
+    
+    # Calculate maximum possible duration (99% of each note's time segment)
+    segment_duration = total_duration / num_notes
+    max_duration = segment_duration * 0.99
+    
+    # Calculate actual note duration from percentage of maximum possible
+    note_duration = max_duration * (duration_percent / 100.0)
+    
+    print(f"  Generating MIDI: center_positions={center_positions}, note_duration={note_duration}")
+    
+    # Create MIDI file with pure mathematical timing
+    mid = mido.MidiFile(ticks_per_beat=1000)  # High resolution for precise timing
+    track = mido.MidiTrack()
+    mid.tracks.append(track)
+    
+    # Direct mathematical conversion: 1000 ticks = 1 second (ignoring musical timing)
+    ticks_per_second = 1000
+    
+    # Convert center positions to start times and create note events
+    note_events = []
+    for center_pos in center_positions:
+        # Calculate start time: center - (duration / 2)
+        start_time = center_pos - (note_duration / 2)
+        end_time = start_time + note_duration
+        
+        note_on_time = int(start_time * ticks_per_second)
+        note_off_time = int(end_time * ticks_per_second)
+        note_events.append(('note_on', note_on_time, midi_note))
+        note_events.append(('note_off', note_off_time, midi_note))
+    
+    # Sort all events by time
+    note_events.sort(key=lambda x: x[1])
+    
+    # Convert absolute times to delta times and create MIDI messages
+    current_time = 0
+    for event_type, abs_time, note in note_events:
+        delta_time = abs_time - current_time
+        current_time = abs_time
+        
+        if event_type == 'note_on':
+            msg = mido.Message('note_on', channel=0, note=note, velocity=80, time=delta_time)
+            print(f"  Note ON: {note} at {abs_time} ticks (delta: {delta_time})")
+        else:
+            msg = mido.Message('note_off', channel=0, note=note, velocity=0, time=delta_time)
+            print(f"  Note OFF: {note} at {abs_time} ticks (delta: {delta_time})")
+        
+        track.append(msg)
+    
+    # Write to temporary file and read bytes
+    with tempfile.NamedTemporaryFile(suffix='.mid', delete=False) as tmp_file:
+        mid.save(tmp_file.name)
+        
+        with open(tmp_file.name, 'rb') as f:
+            midi_bytes = f.read()
+        os.unlink(tmp_file.name)
+    
+    return midi_bytes
+
+@app.post("/gesture/multi-layer")
+def generate_multi_layer_gesture(request: MultiLayerGestureRequest):
+    """Generate symmetric gestures for multiple layers simultaneously."""
+    try:
+        result_layers = {}
+        
+        for layer_config in request.layers:
+            # Validate parameters
+            if not (0 <= layer_config.midiNote <= 127):
+                return {"error": f"Invalid MIDI note {layer_config.midiNote} for layer {layer_config.layerId}. Must be 0-127."}
+            
+            if not (1 <= layer_config.durationPercent <= 100):
+                return {"error": f"Invalid duration percent {layer_config.durationPercent} for layer {layer_config.layerId}. Must be 1-100."}
+            
+            if not (1 <= layer_config.totalDuration <= 10):
+                return {"error": f"Invalid total duration {layer_config.totalDuration} for layer {layer_config.layerId}. Must be 1-10 seconds."}
+            
+            if not (1 <= layer_config.numNotes <= 100):
+                return {"error": f"Invalid number of notes {layer_config.numNotes} for layer {layer_config.layerId}. Must be 1-100."}
+            
+            # Calculate symmetric positions
+            center_positions = calculate_symmetric_positions(layer_config.numNotes, layer_config.totalDuration)
+            print(f"Layer {layer_config.layerId}: center_positions = {center_positions}")
+            
+            # Generate MIDI for this layer
+            midi_bytes = generate_layer_midi(
+                layer_config.midiNote,
+                center_positions,
+                layer_config.durationPercent,
+                layer_config.totalDuration,
+                layer_config.numNotes
+            )
+            
+            # Convert to base64 for response
+            import base64
+            result_layers[str(layer_config.layerId)] = base64.b64encode(midi_bytes).decode('utf-8')
+        
+        return {
+            "success": True,
+            "layers": result_layers
+        }
+        
+    except Exception as e:
+        print(f"Error generating multi-layer gesture: {str(e)}")
         return {"error": str(e)}
 
 @app.post("/import-midi")

@@ -25,7 +25,8 @@ const MultiLayerEditor = ({
   onSoloLayer,
   onPlaybackProgress,
   onTransform,
-  onGesture
+  onGesture,
+  onMultiLayerGesture
 }) => {
   return (
     <div style={{
@@ -43,6 +44,7 @@ const MultiLayerEditor = ({
         onPlayAll={onPlayAll}
         onStopAll={onStopAll}
         onClearAll={onClearAllLayers}
+        onMultiLayerGesture={onMultiLayerGesture}
         loading={loading}
         layers={layers}
       />

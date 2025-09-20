@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import SuperColliderExport from './SuperColliderExport';
+import MultiLayerGesturePanel from './MultiLayerGesturePanel';
 
 const MultiLayerToolbar = ({ 
   onLoadAllLayers,
@@ -7,6 +8,7 @@ const MultiLayerToolbar = ({
   onPlayAll,
   onStopAll,
   onClearAll,
+  onMultiLayerGesture,
   loading,
   layers
 }) => {
@@ -230,6 +232,12 @@ const MultiLayerToolbar = ({
         >
           {sendingOSC ? 'Sending...' : 'Send to OSC'}
         </button>
+
+        <MultiLayerGesturePanel 
+          onMultiLayerGesture={onMultiLayerGesture}
+          disabled={loading}
+          loading={loading}
+        />
       </div>
     </div>
   );
